@@ -3,9 +3,10 @@ import { getRoom, setRoom } from "@/lib/store";
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const roomId = params.id.toUpperCase();
+  const { id } = await params;
+  const roomId = id.toUpperCase();
   const room = await getRoom(roomId);
 
   if (!room) {

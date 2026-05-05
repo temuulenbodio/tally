@@ -20,7 +20,7 @@
 
 ## Tech Stack
 
-- **Next.js 14** (App Router, TypeScript)
+- **Next.js 15** (App Router, TypeScript)
 - **Tailwind CSS** (custom 8-bit theme)
 - **Press Start 2P** font via `@fontsource`
 - **Upstash Redis** (optional – in-memory fallback for development)

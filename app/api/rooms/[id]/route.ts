@@ -3,9 +3,10 @@ import { getRoom } from "@/lib/store";
 
 export async function GET(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const room = await getRoom(params.id.toUpperCase());
+  const { id } = await params;
+  const room = await getRoom(id.toUpperCase());
   if (!room) {
     return NextResponse.json({ error: "Room not found" }, { status: 404 });
   }
