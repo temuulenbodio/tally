@@ -68,7 +68,7 @@ export async function POST(
       return NextResponse.json({ error: "No pending challenge for you" }, { status: 400 });
     }
     g.status = "active";
-    g.startedAt = Date.now() + 3500;
+    g.startedAt = Date.now() + 5000;
     await setRoom(roomId, room);
     return NextResponse.json({ game: g });
   }

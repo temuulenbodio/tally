@@ -82,19 +82,26 @@ export default function RoomPage() {
   const [activeTab,    setActiveTab]    = useState<"drinks"|"games"|"debts"|"total">("drinks");
   const [gamesScreen,  setGamesScreen]  = useState<"lobby"|"challenge"|"duel">("lobby");
   const [tappedAnswer, setTappedAnswer] = useState<number | null>(null);
-  const [countdown,    setCountdown]    = useState(3);
+  const [countdown,    setCountdown]    = useState(5);
+  const [settlingDebt, setSettlingDebt] = useState<string | null>(null);
   const [gameError,    setGameError]    = useState("");
   const [showBillSplit, setShowBillSplit] = useState(false);
 
-  const pollRef      = useRef<ReturnType<typeof setInterval> | null>(null);
-  const waterTimerRef = useRef<ReturnType<typeof setTimeout>  | null>(null);
+  const pollRef        = useRef<ReturnType<typeof setInterval> | null>(null);
+  const waterTimerRef  = useRef<ReturnType<typeof setTimeout>  | null>(null);
+  const notFoundCount  = useRef(0);
 
   // ── fetch ───────────────────────────────────────────────────────────────
   const fetchRoom = useCallback(async () => {
     try {
       const res = await fetch(`/api/rooms/${roomId}`);
-      if (res.status === 404) { setRoomNotFound(true); return; }
+      if (res.status === 404) {
+        notFoundCount.current += 1;
+        if (notFoundCount.current >= 3) setRoomNotFound(true);
+        return;
+      }
       if (!res.ok) return;
+      notFoundCount.current = 0;
       const data: RoomData = await res.json();
       setRoom(data);
       const me = data.members.find(m => m.nickname === nickname);
@@ -223,12 +230,13 @@ export default function RoomPage() {
     if (res.ok) fetchRoom();
   }
 
-  async function handleSettle(debtId: string) {
+  async function handleSettle(debtId: string, drinkName: string) {
     if (!nickname) return;
     await fetch(`/api/rooms/${roomId}/debts`, {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ debtId, nickname }),
+      body: JSON.stringify({ debtId, nickname, drinkName }),
     });
+    setSettlingDebt(null);
     fetchRoom();
   }
 
@@ -648,15 +656,42 @@ export default function RoomPage() {
                 <div className="text-pixel-pink text-[10px] font-pixel mb-2">▸ YOU OWE</div>
                 <div className="flex flex-col gap-2">
                   {myDebts.map(d => (
-                    <div key={d.id} className="pixel-card-pink p-3 flex items-center justify-between">
-                      <div>
-                        <div className="text-white text-[9px] font-pixel">{d.to}</div>
-                        <div className="text-[8px] text-gray-400 font-pixel mt-0.5">🍺 ×1 from game</div>
+                    <div key={d.id} className="pixel-card-pink p-3 flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-white text-[9px] font-pixel">{d.to}</div>
+                          <div className="text-[8px] text-gray-400 font-pixel mt-0.5">🍺 ×1 from game</div>
+                        </div>
+                        {settlingDebt !== d.id && (
+                          <button className="pixel-btn pixel-btn-yellow text-[8px]" style={{ padding:"8px 12px" }}
+                            onClick={() => setSettlingDebt(d.id)}>
+                            🍺 SEND DRINK
+                          </button>
+                        )}
+                        {settlingDebt === d.id && (
+                          <button className="pixel-btn pixel-btn-pink text-[8px]" style={{ padding:"8px 12px" }}
+                            onClick={() => setSettlingDebt(null)}>
+                            ✖ CANCEL
+                          </button>
+                        )}
                       </div>
-                      <button className="pixel-btn pixel-btn-yellow text-[8px]" style={{ padding:"8px 12px" }}
-                        onClick={() => handleSettle(d.id)}>
-                        ✔ SETTLE
-                      </button>
+                      {settlingDebt === d.id && (
+                        <div>
+                          <div className="text-[8px] text-gray-400 font-pixel mb-2">PICK A DRINK TO SEND TO {d.to}:</div>
+                          <div className="grid grid-cols-3 gap-2">
+                            {(room?.drinkTypes ?? []).map((dt, idx) => (
+                              <button key={dt.name}
+                                className={`drink-type-btn ${DRINK_BTN_COLORS[idx % DRINK_BTN_COLORS.length]}`}
+                                style={{ padding:"14px 6px" }}
+                                onClick={() => handleSettle(d.id, dt.name)}>
+                                <span className="text-2xl leading-none" style={{ fontFamily:"initial" }}>{dt.emoji ?? "🍺"}</span>
+                                <span className="text-[8px] font-pixel leading-tight mt-1">{dt.name}</span>
+                                <span className="text-[7px] font-pixel opacity-80">${dt.price.toFixed(2)}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
