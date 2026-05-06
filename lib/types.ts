@@ -11,10 +11,35 @@ export interface RoomMember {
   joinedAt: number;
 }
 
+export interface GameState {
+  id: string;
+  type: "number-finder";
+  status: "pending" | "active" | "finished";
+  challenger: string;
+  challenged: string;
+  target: number;
+  choices: number[];
+  startedAt: number | null;
+  winner: string | null;
+  finishedAt: number | null;
+}
+
+export interface DrinkDebt {
+  id: string;
+  from: string;
+  to: string;
+  gameId: string;
+  createdAt: number;
+  settled: boolean;
+}
+
 export interface Room {
   id: string;
   name: string;
   createdAt: number;
   drinkTypes: DrinkType[];
   members: { [nickname: string]: RoomMember };
+  activeGame: GameState | null;
+  debts: DrinkDebt[];
+  endedAt: number | null;
 }

@@ -51,6 +51,9 @@ export async function POST(request: Request) {
       createdAt: Date.now(),
       drinkTypes,
       members: {},
+      activeGame: null,
+      debts: [],
+      endedAt: null,
     };
 
     await setRoom(id, room);

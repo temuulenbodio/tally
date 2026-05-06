@@ -251,6 +251,30 @@ body::before {
 }
 .drink-type-btn-purple:active { box-shadow: 0 1px 0 #5e2d8e, 0 2px 0 rgba(0,0,0,0.5); }
 
+/* Game number buttons */
+.game-num-btn {
+  width: 100%;
+  aspect-ratio: 1;
+  background: #e8e8e8;
+  color: #000;
+  border: none;
+  border-radius: 0;
+  font-family: 'Press Start 2P', cursive;
+  font-size: 1.1rem;
+  cursor: pointer;
+  box-shadow: 0 5px 0 #888, 0 7px 0 rgba(0,0,0,0.5);
+  transition: transform 0.05s, box-shadow 0.05s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.game-num-btn:active   { transform: translateY(4px); box-shadow: 0 1px 0 #888; }
+.game-num-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: 0 5px 0 #888; }
+.game-num-btn-correct  { background: var(--pixel-green) !important; animation: drinkPop 0.4s; }
+.game-num-btn-wrong    { background: var(--pixel-pink) !important; color: #fff; }
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

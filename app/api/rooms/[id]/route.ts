@@ -18,5 +18,8 @@ export async function GET(
     name: room.name,
     drinkTypes: room.drinkTypes ?? [],
     members,
+    activeGame: room.activeGame ?? null,
+    debts: (room.debts ?? []).filter((d) => !d.settled),
+    endedAt: room.endedAt ?? null,
   });
 }

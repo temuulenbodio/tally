@@ -13,6 +13,10 @@ export async function POST(
     return NextResponse.json({ error: "Room not found" }, { status: 404 });
   }
 
+  if (room.endedAt) {
+    return NextResponse.json({ error: "ROOM IS CLOSED" }, { status: 403 });
+  }
+
   const body = await request.json();
   const nickname = (body.nickname ?? "").trim();
   const drinkName = (body.drinkName ?? "").trim();
