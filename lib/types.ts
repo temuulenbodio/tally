@@ -13,7 +13,7 @@ export interface RoomMember {
 
 export interface GameState {
   id: string;
-  type: "number-finder";
+  type: "number-finder" | "shootout";
   status: "pending" | "active" | "finished";
   challenger: string;
   challenged: string;

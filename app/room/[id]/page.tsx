@@ -6,7 +6,7 @@ import { useRouter, useParams } from "next/navigation";
 interface DrinkType  { name: string; price: number; emoji?: string }
 interface Member     { nickname: string; drinks: number; totalSpent: number; joinedAt: number }
 interface GameState  {
-  id: string; type: "number-finder";
+  id: string; type: "number-finder" | "shootout";
   status: "pending" | "active" | "finished";
   challenger: string; challenged: string;
   target: number; choices: number[];
@@ -82,8 +82,11 @@ export default function RoomPage() {
   const [activeTab,    setActiveTab]    = useState<"drinks"|"games"|"debts"|"total">("drinks");
   const [gamesScreen,  setGamesScreen]  = useState<"lobby"|"challenge"|"duel">("lobby");
   const [tappedAnswer, setTappedAnswer] = useState<number | null>(null);
-  const [countdown,    setCountdown]    = useState(5);
-  const [settlingDebt, setSettlingDebt] = useState<string | null>(null);
+  const [countdown,      setCountdown]      = useState(5);
+  const [settlingDebt,   setSettlingDebt]   = useState<string | null>(null);
+  const [selectedGame,   setSelectedGame]   = useState<"number-finder" | "shootout">("number-finder");
+  const [shootoutIsGreen, setShootoutIsGreen] = useState(false);
+  const [shotFired,      setShotFired]      = useState(false);
   const [gameError,    setGameError]    = useState("");
   const [showBillSplit, setShowBillSplit] = useState(false);
 
@@ -139,8 +142,20 @@ export default function RoomPage() {
   // reset per game
   useEffect(() => {
     setTappedAnswer(null);
+    setShootoutIsGreen(false);
+    setShotFired(false);
     if (room?.activeGame) setGamesScreen("duel");
   }, [room?.activeGame?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // shootout green-light timer
+  useEffect(() => {
+    const g = room?.activeGame;
+    if (!g || g.type !== "shootout" || g.status !== "active" || !g.startedAt) return;
+    const delay = g.startedAt - Date.now();
+    if (delay <= 0) { setShootoutIsGreen(true); return; }
+    const t = setTimeout(() => setShootoutIsGreen(true), delay);
+    return () => clearTimeout(t);
+  }, [room?.activeGame?.id, room?.activeGame?.startedAt, room?.activeGame?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── handlers ────────────────────────────────────────────────────────────
   async function handleJoin(e: React.FormEvent) {
@@ -195,11 +210,22 @@ export default function RoomPage() {
     if (!nickname) return; setGameError("");
     const res = await fetch(`/api/rooms/${roomId}/game`, {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ action:"challenge", nickname, challenged }),
+      body: JSON.stringify({ action:"challenge", nickname, challenged, gameType: selectedGame }),
     });
     const data = await res.json();
     if (!res.ok) { setGameError(data.error ?? "Error"); return; }
+    setGamesScreen("duel");
     fetchRoom();
+  }
+
+  async function handleShoot() {
+    if (!nickname || shotFired || !shootoutIsGreen) return;
+    setShotFired(true);
+    const res = await fetch(`/api/rooms/${roomId}/game`, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ action:"shoot", nickname }),
+    });
+    if (res.ok) fetchRoom();
   }
 
   async function handleAccept() {
@@ -208,6 +234,8 @@ export default function RoomPage() {
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({ action:"accept", nickname }),
     });
+    setActiveTab("games");
+    setGamesScreen("duel");
     fetchRoom();
   }
 
@@ -479,22 +507,33 @@ export default function RoomPage() {
                       <span style={{ fontFamily:"initial" }}>🎯</span> NUMBER FINDER
                     </div>
                     <div className="text-[8px] text-gray-400 font-pixel leading-relaxed">
-                      TAP THE NUMBER FIRST.<br />LOSER BUYS A ROUND.
+                      TAP THE TARGET NUMBER FIRST.<br />LOSER BUYS A ROUND.
                     </div>
                   </div>
                   <button className="pixel-btn pixel-btn-yellow flex-shrink-0 text-[8px]"
                     style={{ padding:"10px 14px" }}
-                    onClick={() => setGamesScreen("challenge")}>
+                    onClick={() => { setSelectedGame("number-finder"); setGamesScreen("challenge"); }}>
                     PLAY ▶
                   </button>
                 </div>
               </div>
-              {/* Coming soon */}
-              <div className="pixel-card p-4 opacity-40">
-                <div className="text-[10px] font-pixel mb-1">
-                  <span style={{ fontFamily:"initial" }}>🃏</span> HIGHER OR LOWER
+              {/* Wild West Shootout */}
+              <div className="pixel-card p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="text-pixel-yellow text-[10px] font-pixel mb-1">
+                      <span style={{ fontFamily:"initial" }}>🤠</span> WILD WEST
+                    </div>
+                    <div className="text-[8px] text-gray-400 font-pixel leading-relaxed">
+                      WAIT FOR THE GREEN.<br />SHOOT FIRST. LOSER DRINKS.
+                    </div>
+                  </div>
+                  <button className="pixel-btn pixel-btn-pink flex-shrink-0 text-[8px]"
+                    style={{ padding:"10px 14px" }}
+                    onClick={() => { setSelectedGame("shootout"); setGamesScreen("challenge"); }}>
+                    PLAY ▶
+                  </button>
                 </div>
-                <div className="text-[8px] text-gray-500 font-pixel">COMING SOON</div>
               </div>
             </div>
           )}
@@ -502,7 +541,9 @@ export default function RoomPage() {
           {/* Challenge: pick opponent */}
           {gamesScreen === "challenge" && (
             <div className="flex flex-col gap-3">
-              <div className="text-pixel-green text-[10px] font-pixel mb-1">▸ PICK OPPONENT</div>
+              <div className="text-pixel-green text-[10px] font-pixel mb-1">
+                ▸ {selectedGame === "shootout" ? "🤠 WILD WEST" : "🎯 NUMBER FINDER"} — PICK OPPONENT
+              </div>
               {gameError && <div className="text-pixel-pink text-[9px] font-pixel">{gameError}</div>}
               {room?.members.filter(m => m.nickname !== nickname).map(m => (
                 <div key={m.nickname} className="pixel-card px-3 py-3 flex items-center justify-between">
@@ -552,8 +593,8 @@ export default function RoomPage() {
               </div>
             )}
 
-            {/* Countdown */}
-            {isCountdown && iAmInGame && (
+            {/* ── NUMBER FINDER: Countdown ── */}
+            {isCountdown && iAmInGame && game.type === "number-finder" && (
               <div className="flex flex-col items-center gap-4 py-6 text-center">
                 <div className="text-[9px] text-gray-400 font-pixel">{game.challenger} VS {game.challenged}</div>
                 <div className="text-pixel-yellow font-pixel drop-shadow-[0_0_20px_rgba(255,221,0,0.9)]"
@@ -564,8 +605,8 @@ export default function RoomPage() {
               </div>
             )}
 
-            {/* Active — number grid */}
-            {isActive && !isTimedOut && iAmInGame && (
+            {/* ── NUMBER FINDER: Active number grid ── */}
+            {isActive && !isTimedOut && iAmInGame && game.type === "number-finder" && (
               <div className="flex flex-col gap-4 py-2">
                 <div className="text-center">
                   <div className="text-[9px] text-gray-400 font-pixel mb-2">TARGET TO HIT:</div>
@@ -597,8 +638,65 @@ export default function RoomPage() {
               </div>
             )}
 
-            {/* Timed out */}
-            {isTimedOut && (
+            {/* ── SHOOTOUT: Holster up (waiting for green) ── */}
+            {game.type === "shootout" && game.status === "active" && iAmInGame && !shootoutIsGreen && !isFinished && (
+              <div className="flex flex-col items-center gap-5 py-8 text-center rounded"
+                style={{ background:"#1a0a00", border:"3px solid #8b4513", padding:"2rem 1rem" }}>
+                <div className="text-5xl" style={{ fontFamily:"initial" }}>🤠</div>
+                <div className="text-[11px] font-pixel" style={{ color:"#d4a855" }}>{game.challenger} VS {game.challenged}</div>
+                <div className="text-pixel-yellow text-[10px] font-pixel">HOLSTER UP!</div>
+                <div className="text-[9px] font-pixel" style={{ color:"#8b6543" }}>
+                  HANDS STEADY<span className="blink">...</span>
+                </div>
+                <div className="text-[8px] font-pixel" style={{ color:"#6b4423" }}>
+                  WAIT FOR THE GREEN
+                </div>
+              </div>
+            )}
+
+            {/* ── SHOOTOUT: Green — DRAW! ── */}
+            {game.type === "shootout" && iAmInGame && shootoutIsGreen && !isFinished && (
+              <div className="flex flex-col items-center justify-center gap-5 py-8 text-center"
+                style={{ background:"#00ff41", minHeight:"280px", margin:"0 -0.75rem" }}>
+                <div className="text-black font-pixel" style={{ fontSize:"3rem", lineHeight:1, textShadow:"4px 4px 0 #007a20" }}>
+                  DRAW!
+                </div>
+                <button
+                  disabled={shotFired}
+                  onClick={handleShoot}
+                  className="font-pixel text-black"
+                  style={{
+                    background: shotFired ? "#888" : "#000",
+                    color: shotFired ? "#444" : "#00ff41",
+                    padding: "24px 40px",
+                    fontSize: "1.4rem",
+                    border: "none",
+                    boxShadow: shotFired ? "none" : "0 8px 0 #003310, 0 10px 0 rgba(0,0,0,0.5)",
+                    cursor: shotFired ? "not-allowed" : "pointer",
+                    transition: "transform 0.05s",
+                    fontFamily: "'Press Start 2P', cursive",
+                    userSelect: "none",
+                  }}>
+                  <span style={{ fontFamily:"initial" }}>🔫</span> {shotFired ? "SHOT!" : "SHOOT!"}
+                </button>
+              </div>
+            )}
+
+            {/* ── SHOOTOUT: Spectating ── */}
+            {game.type === "shootout" && game.status === "active" && !iAmInGame && (
+              <div className="flex flex-col items-center gap-3 py-6 text-center"
+                style={{ background: shootoutIsGreen ? "#00ff41" : "#1a0a00", transition:"background 0.1s" }}>
+                <div className="font-pixel text-[9px]" style={{ color: shootoutIsGreen ? "#000" : "#d4a855" }}>
+                  {shootoutIsGreen ? "DRAW!" : "HOLSTER UP..."}
+                </div>
+                <div className="text-[8px] font-pixel" style={{ color: shootoutIsGreen ? "#003310" : "#6b4423" }}>
+                  {game.challenger} VS {game.challenged}
+                </div>
+              </div>
+            )}
+
+            {/* ── Timed out (number-finder only) ── */}
+            {isTimedOut && game.type === "number-finder" && (
               <div className="flex flex-col items-center gap-4 py-6 text-center">
                 <div className="text-pixel-yellow text-[10px] font-pixel">&#9201; TIME&apos;S UP!</div>
                 <div className="text-[9px] text-gray-400 font-pixel">NOBODY WINS THIS ROUND</div>
@@ -606,13 +704,25 @@ export default function RoomPage() {
               </div>
             )}
 
-            {/* Finished */}
+            {/* ── Finished (both game types) ── */}
             {isFinished && (
               <div className="flex flex-col items-center gap-4 py-6 text-center">
-                <div className="text-4xl" style={{ fontFamily:"initial" }}>🏆</div>
+                <div className="text-4xl" style={{ fontFamily:"initial" }}>
+                  {game.type === "shootout" ? "🏆" : "🏆"}
+                </div>
                 <div className="text-pixel-yellow text-xs font-pixel">{game.winner} WINS!</div>
+                {game.type === "shootout" && game.winner === nickname && (
+                  <div className="text-[9px] text-pixel-green font-pixel">
+                    FASTEST DRAW IN THE WEST <span style={{ fontFamily:"initial" }}>🤠</span>
+                  </div>
+                )}
+                {game.type === "shootout" && game.winner !== nickname && iAmInGame && (
+                  <div className="text-[9px] text-pixel-pink font-pixel">
+                    YOU WERE TOO SLOW <span style={{ fontFamily:"initial" }}>💀</span>
+                  </div>
+                )}
                 <div className="text-[9px] text-gray-400 font-pixel">
-                  {game.winner === game.challenger ? game.challenged : game.challenger} OWES A DRINK 🍺
+                  {game.winner === game.challenger ? game.challenged : game.challenger} OWES A DRINK <span style={{ fontFamily:"initial" }}>🍺</span>
                 </div>
                 <button className="pixel-btn pixel-btn-yellow w-full"
                   onClick={() => { setGamesScreen("lobby"); fetchRoom(); }}>
@@ -621,8 +731,8 @@ export default function RoomPage() {
               </div>
             )}
 
-            {/* Non-participant watching */}
-            {(isActive || isCountdown) && !iAmInGame && (
+            {/* Non-participant watching — number-finder only (shootout has its own spectator block) */}
+            {game.type === "number-finder" && (isActive || isCountdown) && !iAmInGame && (
               <div className="flex flex-col items-center gap-3 py-6 text-center">
                 <div className="text-[9px] text-gray-400 font-pixel">
                   ⚔ {game.challenger} VS {game.challenged}

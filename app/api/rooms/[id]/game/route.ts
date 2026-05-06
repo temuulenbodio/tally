@@ -13,6 +13,10 @@ function generateChoices(target: number): number[] {
   return arr;
 }
 
+function createDebt(from: string, to: string, gameId: string): DrinkDebt {
+  return { id: crypto.randomUUID(), from, to, gameId, createdAt: Date.now(), settled: false };
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -31,7 +35,7 @@ export async function POST(
 
   // ── challenge ──────────────────────────────────────────────────────────
   if (action === "challenge") {
-    const { challenged } = body as { challenged: string };
+    const { challenged, gameType } = body as { challenged: string; gameType?: string };
     if (!challenged || !room.members[challenged]) {
       return NextResponse.json({ error: "Player not found" }, { status: 400 });
     }
@@ -43,15 +47,16 @@ export async function POST(
       return NextResponse.json({ error: "GAME IN PROGRESS" }, { status: 409 });
     }
 
+    const type = gameType === "shootout" ? "shootout" : "number-finder";
     const target = Math.floor(Math.random() * 90) + 10;
     const game: GameState = {
       id: crypto.randomUUID(),
-      type: "number-finder",
+      type,
       status: "pending",
       challenger: nickname,
       challenged,
       target,
-      choices: generateChoices(target),
+      choices: type === "number-finder" ? generateChoices(target) : [],
       startedAt: null,
       winner: null,
       finishedAt: null,
@@ -68,7 +73,12 @@ export async function POST(
       return NextResponse.json({ error: "No pending challenge for you" }, { status: 400 });
     }
     g.status = "active";
-    g.startedAt = Date.now() + 5000;
+    if (g.type === "shootout") {
+      // Random green light: 2–7 seconds after accept
+      g.startedAt = Date.now() + 2000 + Math.floor(Math.random() * 5000);
+    } else {
+      g.startedAt = Date.now() + 5000;
+    }
     await setRoom(roomId, room);
     return NextResponse.json({ game: g });
   }
@@ -84,12 +94,12 @@ export async function POST(
     return NextResponse.json({ declined: true });
   }
 
-  // ── answer ─────────────────────────────────────────────────────────────
+  // ── answer (number-finder) ─────────────────────────────────────────────
   if (action === "answer") {
     const { answer } = body as { answer: number };
     const g = room.activeGame;
-    if (!g || g.status !== "active") {
-      return NextResponse.json({ error: "No active game" }, { status: 400 });
+    if (!g || g.status !== "active" || g.type !== "number-finder") {
+      return NextResponse.json({ error: "No active number-finder game" }, { status: 400 });
     }
     if (!g.startedAt || Date.now() < g.startedAt) {
       return NextResponse.json({ error: "Too early" }, { status: 400 });
@@ -104,23 +114,38 @@ export async function POST(
       return NextResponse.json({ correct: false });
     }
 
-    // Correct answer — this player wins
     g.winner = nickname;
     g.finishedAt = Date.now();
     g.status = "finished";
-
     const loser = nickname === g.challenger ? g.challenged : g.challenger;
-    const debt: DrinkDebt = {
-      id: crypto.randomUUID(),
-      from: loser,
-      to: nickname,
-      gameId: g.id,
-      createdAt: Date.now(),
-      settled: false,
-    };
-    room.debts = [...(room.debts ?? []), debt];
+    room.debts = [...(room.debts ?? []), createDebt(loser, nickname, g.id)];
     await setRoom(roomId, room);
     return NextResponse.json({ correct: true, game: g });
+  }
+
+  // ── shoot (shootout) ───────────────────────────────────────────────────
+  if (action === "shoot") {
+    const g = room.activeGame;
+    if (!g || g.status !== "active" || g.type !== "shootout") {
+      return NextResponse.json({ error: "No active shootout" }, { status: 400 });
+    }
+    if (!g.startedAt || Date.now() < g.startedAt) {
+      return NextResponse.json({ error: "Too early" }, { status: 400 });
+    }
+    if (g.winner) {
+      return NextResponse.json({ error: "Already won", winner: g.winner }, { status: 400 });
+    }
+    if (nickname !== g.challenger && nickname !== g.challenged) {
+      return NextResponse.json({ error: "Not a participant" }, { status: 400 });
+    }
+
+    g.winner = nickname;
+    g.finishedAt = Date.now();
+    g.status = "finished";
+    const loser = nickname === g.challenger ? g.challenged : g.challenger;
+    room.debts = [...(room.debts ?? []), createDebt(loser, nickname, g.id)];
+    await setRoom(roomId, room);
+    return NextResponse.json({ won: true, game: g });
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });
