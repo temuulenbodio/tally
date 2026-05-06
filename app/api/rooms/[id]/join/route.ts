@@ -20,11 +20,11 @@ export async function POST(
     return NextResponse.json({ error: "Invalid nickname" }, { status: 400 });
   }
 
-  // Re-joining the same room is fine (idempotent)
   if (!room.members[nickname]) {
     room.members[nickname] = {
       nickname,
       drinks: 0,
+      totalSpent: 0,
       joinedAt: Date.now(),
     };
     await setRoom(roomId, room);

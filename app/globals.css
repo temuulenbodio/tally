@@ -12,6 +12,8 @@
   --pixel-yellow: #ffdd00;
   --pixel-pink: #ff0080;
   --pixel-blue: #00d4ff;
+  --pixel-orange: #ff6b35;
+  --pixel-purple: #9b59b6;
 }
 
 * {
@@ -184,6 +186,70 @@ body::before {
 .rank-1 { color: var(--pixel-yellow); }
 .rank-2 { color: #c0c0c0; }
 .rank-3 { color: #cd7f32; }
+
+/* Drink-type grid buttons */
+.drink-type-btn {
+  width: 100%;
+  padding: 20px 8px;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.05s, box-shadow 0.05s;
+  text-transform: uppercase;
+  font-family: 'Press Start 2P', cursive;
+  letter-spacing: 0.05em;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  border-radius: 0;
+}
+.drink-type-btn:active {
+  transform: translateY(5px);
+}
+
+.drink-type-btn-yellow {
+  background: var(--pixel-yellow);
+  color: #000;
+  box-shadow: 0 6px 0 #8a7500, 0 8px 0 rgba(0,0,0,0.5);
+}
+.drink-type-btn-yellow:active { box-shadow: 0 1px 0 #8a7500, 0 2px 0 rgba(0,0,0,0.5); }
+
+.drink-type-btn-green {
+  background: var(--pixel-green);
+  color: #000;
+  box-shadow: 0 6px 0 #007a20, 0 8px 0 rgba(0,0,0,0.5);
+}
+.drink-type-btn-green:active { box-shadow: 0 1px 0 #007a20, 0 2px 0 rgba(0,0,0,0.5); }
+
+.drink-type-btn-blue {
+  background: var(--pixel-blue);
+  color: #000;
+  box-shadow: 0 6px 0 #007a90, 0 8px 0 rgba(0,0,0,0.5);
+}
+.drink-type-btn-blue:active { box-shadow: 0 1px 0 #007a90, 0 2px 0 rgba(0,0,0,0.5); }
+
+.drink-type-btn-pink {
+  background: var(--pixel-pink);
+  color: #fff;
+  box-shadow: 0 6px 0 #7a0040, 0 8px 0 rgba(0,0,0,0.5);
+}
+.drink-type-btn-pink:active { box-shadow: 0 1px 0 #7a0040, 0 2px 0 rgba(0,0,0,0.5); }
+
+.drink-type-btn-orange {
+  background: var(--pixel-orange);
+  color: #000;
+  box-shadow: 0 6px 0 #a03800, 0 8px 0 rgba(0,0,0,0.5);
+}
+.drink-type-btn-orange:active { box-shadow: 0 1px 0 #a03800, 0 2px 0 rgba(0,0,0,0.5); }
+
+.drink-type-btn-purple {
+  background: var(--pixel-purple);
+  color: #fff;
+  box-shadow: 0 6px 0 #5e2d8e, 0 8px 0 rgba(0,0,0,0.5);
+}
+.drink-type-btn-purple:active { box-shadow: 0 1px 0 #5e2d8e, 0 2px 0 rgba(0,0,0,0.5); }
 
 /* Scrollbar */
 ::-webkit-scrollbar {

@@ -11,10 +11,12 @@ export async function GET(
     return NextResponse.json({ error: "Room not found" }, { status: 404 });
   }
 
-  // Return members as sorted array (highest drinks first)
-  const members = Object.values(room.members).sort(
-    (a, b) => b.drinks - a.drinks
-  );
+  const members = Object.values(room.members).sort((a, b) => b.drinks - a.drinks);
 
-  return NextResponse.json({ id: room.id, name: room.name, members });
+  return NextResponse.json({
+    id: room.id,
+    name: room.name,
+    drinkTypes: room.drinkTypes ?? [],
+    members,
+  });
 }
