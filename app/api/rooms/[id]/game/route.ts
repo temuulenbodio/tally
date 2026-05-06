@@ -74,8 +74,8 @@ export async function POST(
     }
     g.status = "active";
     if (g.type === "shootout") {
-      // Random green light: 2–7 seconds after accept
-      g.startedAt = Date.now() + 2000 + Math.floor(Math.random() * 5000);
+      // Random green light: 4–6 seconds after accept
+      g.startedAt = Date.now() + 4000 + Math.floor(Math.random() * 2001);
     } else {
       g.startedAt = Date.now() + 5000;
     }

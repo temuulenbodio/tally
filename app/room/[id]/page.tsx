@@ -496,7 +496,7 @@ export default function RoomPage() {
         <div className="mx-3 mt-2 flex-1">
 
           {/* Lobby */}
-          {gamesScreen === "lobby" && !game && (
+          {gamesScreen === "lobby" && (!game || game.status === "finished") && (
             <div className="flex flex-col gap-3">
               <div className="text-pixel-green text-[10px] font-pixel mb-1">▸ MINI GAMES</div>
               {/* Number Finder */}
@@ -570,7 +570,7 @@ export default function RoomPage() {
           )}
 
           {/* Duel screens */}
-          {(gamesScreen === "duel" || game) && game && (<>
+          {gamesScreen === "duel" && game && (<>
 
             {/* Pending — challenger waiting */}
             {isPending && game.challenger === nickname && (
@@ -638,18 +638,18 @@ export default function RoomPage() {
               </div>
             )}
 
-            {/* ── SHOOTOUT: Holster up (waiting for green) ── */}
+            {/* ── SHOOTOUT: Red — HOLD! ── */}
             {game.type === "shootout" && game.status === "active" && iAmInGame && !shootoutIsGreen && !isFinished && (
-              <div className="flex flex-col items-center gap-5 py-8 text-center rounded"
-                style={{ background:"#1a0a00", border:"3px solid #8b4513", padding:"2rem 1rem" }}>
-                <div className="text-5xl" style={{ fontFamily:"initial" }}>🤠</div>
-                <div className="text-[11px] font-pixel" style={{ color:"#d4a855" }}>{game.challenger} VS {game.challenged}</div>
-                <div className="text-pixel-yellow text-[10px] font-pixel">HOLSTER UP!</div>
-                <div className="text-[9px] font-pixel" style={{ color:"#8b6543" }}>
-                  HANDS STEADY<span className="blink">...</span>
+              <div className="flex flex-col items-center justify-center gap-5 text-center"
+                style={{ background:"#cc0000", minHeight:"280px", margin:"0 -0.75rem", padding:"2rem 1rem" }}>
+                <div className="text-white font-pixel" style={{ fontSize:"3rem", lineHeight:1, textShadow:"4px 4px 0 #6a0000" }}>
+                  HOLD!
                 </div>
-                <div className="text-[8px] font-pixel" style={{ color:"#6b4423" }}>
-                  WAIT FOR THE GREEN
+                <div className="text-[10px] font-pixel" style={{ color:"#ffaaaa" }}>
+                  DON&apos;T SHOOT YET<span className="blink">...</span>
+                </div>
+                <div className="text-[9px] font-pixel" style={{ color:"#ff7777" }}>
+                  {game.challenger} VS {game.challenged}
                 </div>
               </div>
             )}
@@ -685,11 +685,11 @@ export default function RoomPage() {
             {/* ── SHOOTOUT: Spectating ── */}
             {game.type === "shootout" && game.status === "active" && !iAmInGame && (
               <div className="flex flex-col items-center gap-3 py-6 text-center"
-                style={{ background: shootoutIsGreen ? "#00ff41" : "#1a0a00", transition:"background 0.1s" }}>
-                <div className="font-pixel text-[9px]" style={{ color: shootoutIsGreen ? "#000" : "#d4a855" }}>
-                  {shootoutIsGreen ? "DRAW!" : "HOLSTER UP..."}
+                style={{ background: shootoutIsGreen ? "#00ff41" : "#cc0000", transition:"background 0.15s", minHeight:"160px", justifyContent:"center" }}>
+                <div className="font-pixel text-[10px]" style={{ color: shootoutIsGreen ? "#000" : "#fff", textShadow: shootoutIsGreen ? "none" : "2px 2px 0 #6a0000" }}>
+                  {shootoutIsGreen ? "DRAW!" : "HOLD!"}
                 </div>
-                <div className="text-[8px] font-pixel" style={{ color: shootoutIsGreen ? "#003310" : "#6b4423" }}>
+                <div className="text-[8px] font-pixel" style={{ color: shootoutIsGreen ? "#003310" : "#ffaaaa" }}>
                   {game.challenger} VS {game.challenged}
                 </div>
               </div>
