@@ -33,6 +33,20 @@ export interface DrinkDebt {
   settled: boolean;
 }
 
+export interface User {
+  username: string;
+  passwordHash: string;
+  createdAt: number;
+}
+
+export interface DrinkRecord {
+  roomId: string;
+  roomName: string;
+  drinkName: string;
+  price: number;
+  timestamp: number;
+}
+
 export interface Room {
   id: string;
   name: string;

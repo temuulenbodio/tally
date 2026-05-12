@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { getRoom, setRoom } from "@/lib/store";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { getRoom, setRoom, logDrinkHistory } from "@/lib/store";
 
 export async function POST(
   request: Request,
@@ -33,6 +35,19 @@ export async function POST(
     Math.round(((room.members[nickname].totalSpent ?? 0) + price) * 100) / 100;
 
   await setRoom(roomId, room);
+
+  try {
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      await logDrinkHistory(session.user.id, {
+        roomId,
+        roomName: room.name,
+        drinkName,
+        price,
+        timestamp: Date.now(),
+      });
+    }
+  } catch { /* auth not configured — skip history */ }
 
   return NextResponse.json({
     success: true,

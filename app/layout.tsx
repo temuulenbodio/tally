@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "@fontsource/press-start-2p";
 import "./globals.css";
+import SessionProvider from "./components/SessionProvider";
 
 export const metadata: Metadata = {
   title: "TALLY – 8-BIT DRINK TRACKER",
@@ -23,7 +24,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body><SessionProvider>{children}</SessionProvider></body>
     </html>
   );
 }

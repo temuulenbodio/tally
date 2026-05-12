@@ -12,10 +12,13 @@
     "@fontsource/press-start-2p": "^5.2.7",
     "@upstash/redis": "^1.37.0",
     "next": "^15.5.15",
+    "bcryptjs": "^2.4.3",
+    "next-auth": "^4.24.11",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

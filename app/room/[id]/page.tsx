@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 interface DrinkType  { name: string; price: number; emoji?: string }
 interface Member     { nickname: string; drinks: number; totalSpent: number; joinedAt: number }
@@ -19,6 +20,8 @@ interface RoomData   {
   activeGame: GameState | null; debts: DrinkDebt[];
   endedAt: number | null;
 }
+
+const DRINK_EMOJIS = ["🍺","🍷","🍸","🍹","🥂","🍾","🥃","🧉","🫗","🧃","🥤","☕"];
 
 const RANK_ICONS   = ["🥇","🥈","🥉"];
 const RANK_COLORS  = ["text-pixel-yellow","text-gray-300","text-amber-600"];
@@ -62,6 +65,7 @@ export default function RoomPage() {
   const router = useRouter();
   const params = useParams();
   const roomId = (params.id as string).toUpperCase();
+  const { data: session, status: authStatus } = useSession();
 
   const [nickname, setNickname]   = useState<string | null>(null);
   const [joinNick, setJoinNick]   = useState("");
@@ -89,10 +93,19 @@ export default function RoomPage() {
   const [shotFired,      setShotFired]      = useState(false);
   const [gameError,    setGameError]    = useState("");
   const [showBillSplit, setShowBillSplit] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [showAddDrink,  setShowAddDrink]  = useState(false);
+  const [newDrinkName,  setNewDrinkName]  = useState("");
+  const [newDrinkPrice, setNewDrinkPrice] = useState("");
+  const [newDrinkEmoji, setNewDrinkEmoji] = useState("🍺");
+  const [addDrinkError, setAddDrinkError] = useState("");
+  const [addDrinkLoading, setAddDrinkLoading] = useState(false);
 
   const pollRef        = useRef<ReturnType<typeof setInterval> | null>(null);
   const waterTimerRef  = useRef<ReturnType<typeof setTimeout>  | null>(null);
   const notFoundCount  = useRef(0);
+  const lastSuccessRef = useRef<number>(Date.now());
+  const autoJoinedRef  = useRef(false);
 
   // ── fetch ───────────────────────────────────────────────────────────────
   const fetchRoom = useCallback(async () => {
@@ -100,11 +113,13 @@ export default function RoomPage() {
       const res = await fetch(`/api/rooms/${roomId}`);
       if (res.status === 404) {
         notFoundCount.current += 1;
-        if (notFoundCount.current >= 3) setRoomNotFound(true);
+        const timeSinceSuccess = Date.now() - lastSuccessRef.current;
+        if (notFoundCount.current >= 5 && timeSinceSuccess > 15000) setRoomNotFound(true);
         return;
       }
       if (!res.ok) return;
       notFoundCount.current = 0;
+      lastSuccessRef.current = Date.now();
       const data: RoomData = await res.json();
       setRoom(data);
       const me = data.members.find(m => m.nickname === nickname);
@@ -116,6 +131,27 @@ export default function RoomPage() {
     const saved = localStorage.getItem(`tally_nick_${roomId}`);
     if (saved) setNickname(saved);
   }, [roomId]);
+
+  useEffect(() => {
+    if (authStatus !== "authenticated") return;
+    if (autoJoinedRef.current) return;
+    if (localStorage.getItem(`tally_nick_${roomId}`)) return;
+    const username = session?.user?.name;
+    if (!username) return;
+    autoJoinedRef.current = true;
+    fetch(`/api/rooms/${roomId}/join`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nickname: username }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (!data.error) {
+          localStorage.setItem(`tally_nick_${roomId}`, username);
+          setNickname(username);
+        }
+      })
+      .catch(() => {});
+  }, [authStatus, session, roomId]);
 
   useEffect(() => {
     if (!nickname) return;
@@ -283,8 +319,34 @@ export default function RoomPage() {
   }
 
   function handleLeave() {
+    setShowLeaveConfirm(true);
+  }
+
+  function confirmLeave() {
     localStorage.removeItem(`tally_nick_${roomId}`);
     router.push("/");
+  }
+
+  async function handleAddDrinkType(e: React.FormEvent) {
+    e.preventDefault();
+    setAddDrinkError("");
+    const name  = newDrinkName.trim().toUpperCase();
+    const price = parseFloat(newDrinkPrice);
+    if (!name) return setAddDrinkError("Enter a drink name!");
+    if (isNaN(price) || price < 0) return setAddDrinkError("Enter a valid price!");
+    setAddDrinkLoading(true);
+    try {
+      const res = await fetch(`/api/rooms/${roomId}/drinks`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, price, emoji: newDrinkEmoji }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setAddDrinkError(data.error ?? "Failed to add"); setAddDrinkLoading(false); return; }
+      setNewDrinkName(""); setNewDrinkPrice(""); setNewDrinkEmoji("🍺");
+      setShowAddDrink(false);
+      await fetchRoom();
+    } catch { setAddDrinkError("Network error"); }
+    finally { setAddDrinkLoading(false); }
   }
 
   // ── room not found ───────────────────────────────────────────────────────
@@ -297,23 +359,30 @@ export default function RoomPage() {
   );
 
   // ── join form ────────────────────────────────────────────────────────────
-  if (!nickname) return (
-    <main className="min-h-screen bg-pixel-bg flex flex-col items-center justify-center p-4">
-      <div className="text-pixel-green text-3xl font-pixel mb-2 drop-shadow-[0_0_12px_rgba(0,255,65,0.6)]">TALLY</div>
-      <div className="text-[9px] text-gray-500 font-pixel mb-8">ROOM: <span className="text-pixel-yellow">{roomId}</span></div>
-      <form onSubmit={handleJoin} className="pixel-card p-5 w-full max-w-sm flex flex-col gap-4 animate-slide-up">
-        <div className="text-pixel-green text-xs font-pixel mb-1">▸ ENTER YOUR NAME</div>
-        <div>
-          <label className="block text-[9px] text-gray-400 font-pixel mb-2">NICKNAME</label>
-          <input className="pixel-input" placeholder="PLAYER1" value={joinNick}
-            onChange={e => setJoinNick(e.target.value)} maxLength={20} autoFocus />
-        </div>
-        {error && <div className="text-pixel-pink text-[9px] font-pixel">{error}</div>}
-        <button type="submit" className="pixel-btn w-full" disabled={joining}>{joining ? "LOADING..." : "▶ ENTER ROOM"}</button>
-        <button type="button" className="pixel-btn pixel-btn-pink w-full" onClick={() => router.push("/")}>✖ BACK</button>
-      </form>
-    </main>
-  );
+  if (!nickname) {
+    if (authStatus === "authenticated" && session?.user?.name) return (
+      <main className="min-h-screen bg-pixel-bg flex items-center justify-center">
+        <div className="text-pixel-green text-xs font-pixel animate-blink">JOINING...</div>
+      </main>
+    );
+    return (
+      <main className="min-h-screen bg-pixel-bg flex flex-col items-center justify-center p-4">
+        <div className="text-pixel-green text-3xl font-pixel mb-2 drop-shadow-[0_0_12px_rgba(0,255,65,0.6)]">TALLY</div>
+        <div className="text-[9px] text-gray-500 font-pixel mb-8">ROOM: <span className="text-pixel-yellow">{roomId}</span></div>
+        <form onSubmit={handleJoin} className="pixel-card p-5 w-full max-w-sm flex flex-col gap-4 animate-slide-up">
+          <div className="text-pixel-green text-xs font-pixel mb-1">▸ ENTER YOUR NAME</div>
+          <div>
+            <label className="block text-[9px] text-gray-400 font-pixel mb-2">NICKNAME</label>
+            <input className="pixel-input" placeholder="PLAYER1" value={joinNick}
+              onChange={e => setJoinNick(e.target.value)} maxLength={20} autoFocus />
+          </div>
+          {error && <div className="text-pixel-pink text-[9px] font-pixel">{error}</div>}
+          <button type="submit" className="pixel-btn w-full" disabled={joining}>{joining ? "LOADING..." : "▶ ENTER ROOM"}</button>
+          <button type="button" className="pixel-btn pixel-btn-pink w-full" onClick={() => router.push("/")}>✖ BACK</button>
+        </form>
+      </main>
+    );
+  }
 
   // ── derived values ───────────────────────────────────────────────────────
   const maxDrinks   = room?.members[0]?.drinks ?? 1;
@@ -417,7 +486,7 @@ export default function RoomPage() {
             <div className="text-[9px] text-gray-400 font-pixel mb-1">YOUR DRINKS</div>
             <div className="text-pixel-yellow text-5xl font-pixel drop-shadow-[0_0_12px_rgba(255,221,0,0.7)]">{drinkCount}</div>
             <div className="text-[9px] text-gray-500 font-pixel mt-1">🍺 × {drinkCount}</div>
-            {totalSpent > 0 && <div className="text-pixel-green text-[9px] font-pixel mt-2">SPENT: ${totalSpent.toFixed(2)}</div>}
+            {totalSpent > 0 && <div className="text-pixel-green text-[9px] font-pixel mt-2">SPENT: {Math.round(totalSpent).toLocaleString()}₮</div>}
           </div>
         </div>
 
@@ -438,12 +507,65 @@ export default function RoomPage() {
                   onClick={() => handleDrink(drink.name)}>
                   <span className="text-3xl leading-none" style={{ fontFamily:"initial" }}>{drink.emoji ?? "🍺"}</span>
                   <span className="text-[10px] font-pixel leading-tight mt-1">{drink.name}</span>
-                  <span className="text-[8px] font-pixel opacity-80">${drink.price.toFixed(2)}</span>
+                  <span className="text-[8px] font-pixel opacity-80">{Math.round(drink.price).toLocaleString()}₮</span>
                 </button>
               ))}
             </div>
           )}
         </div>
+
+        {/* Add drink type */}
+        {!room?.endedAt && drinkTypes.length < 8 && (
+          <div className="mx-3 mb-4">
+            {!showAddDrink ? (
+              <button
+                className="pixel-btn pixel-btn-blue w-full text-[9px]"
+                onClick={() => { setShowAddDrink(true); setAddDrinkError(""); }}
+              >
+                + ADD DRINK TYPE
+              </button>
+            ) : (
+              <form onSubmit={handleAddDrinkType} className="pixel-card p-4 flex flex-col gap-3">
+                <div className="text-pixel-blue text-[9px] font-pixel">▸ NEW DRINK TYPE</div>
+                <input
+                  className="pixel-input"
+                  placeholder="BEER"
+                  value={newDrinkName}
+                  onChange={e => setNewDrinkName(e.target.value.toUpperCase())}
+                  maxLength={20}
+                  autoFocus
+                />
+                <div className="flex flex-wrap gap-1">
+                  {DRINK_EMOJIS.map(em => (
+                    <button key={em} type="button"
+                      onClick={() => setNewDrinkEmoji(em)}
+                      style={{ fontFamily: "initial" }}
+                      className={`text-xl px-1 py-0.5 border-2 ${newDrinkEmoji === em ? "border-pixel-green" : "border-transparent"}`}>
+                      {em}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  className="pixel-input"
+                  placeholder="PRICE (₮)"
+                  type="number" min="0" step="0.01"
+                  value={newDrinkPrice}
+                  onChange={e => setNewDrinkPrice(e.target.value)}
+                />
+                {addDrinkError && <div className="text-pixel-pink text-[8px] font-pixel">{addDrinkError}</div>}
+                <div className="flex gap-2">
+                  <button type="submit" className="pixel-btn pixel-btn-yellow flex-1 text-[9px]" disabled={addDrinkLoading}>
+                    {addDrinkLoading ? "..." : "✔ ADD"}
+                  </button>
+                  <button type="button" className="pixel-btn pixel-btn-pink flex-1 text-[9px]"
+                    onClick={() => { setShowAddDrink(false); setAddDrinkError(""); }}>
+                    ✖ CANCEL
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
 
         {/* Leaderboard */}
         <div className="mx-3 flex-1">
@@ -473,7 +595,7 @@ export default function RoomPage() {
                       <div className="flex flex-col items-end ml-2 flex-shrink-0">
                         <span className={`text-xs font-pixel ${idx < 3 ? RANK_COLORS[idx] : "text-white"}`}>{member.drinks} 🍺</span>
                         {(member.totalSpent ?? 0) > 0 && (
-                          <span className="text-[8px] font-pixel text-pixel-green">${(member.totalSpent ?? 0).toFixed(2)}</span>
+                          <span className="text-[8px] font-pixel text-pixel-green">{Math.round(member.totalSpent ?? 0).toLocaleString()}₮</span>
                         )}
                       </div>
                     </div>
@@ -796,7 +918,7 @@ export default function RoomPage() {
                                 onClick={() => handleSettle(d.id, dt.name)}>
                                 <span className="text-2xl leading-none" style={{ fontFamily:"initial" }}>{dt.emoji ?? "🍺"}</span>
                                 <span className="text-[8px] font-pixel leading-tight mt-1">{dt.name}</span>
-                                <span className="text-[7px] font-pixel opacity-80">${dt.price.toFixed(2)}</span>
+                                <span className="text-[7px] font-pixel opacity-80">{Math.round(dt.price).toLocaleString()}₮</span>
                               </button>
                             ))}
                           </div>
@@ -846,7 +968,7 @@ export default function RoomPage() {
                     </div>
                     <div className="flex flex-col items-end ml-2 flex-shrink-0">
                       <span className="text-[9px] font-pixel text-white">{m.drinks} 🍺</span>
-                      <span className="text-[8px] font-pixel text-pixel-green">${(m.totalSpent ?? 0).toFixed(2)}</span>
+                      <span className="text-[8px] font-pixel text-pixel-green">{Math.round(m.totalSpent ?? 0).toLocaleString()}₮</span>
                     </div>
                   </div>
                   <div className="w-full h-2 bg-black/40 overflow-hidden">
@@ -862,11 +984,11 @@ export default function RoomPage() {
           <div className="pixel-card p-4 flex flex-col gap-1">
             <div className="flex justify-between text-[9px] font-pixel">
               <span className="text-gray-400">ROOM TOTAL</span>
-              <span className="text-white">${billSplit.total.toFixed(2)}</span>
+              <span className="text-white">{Math.round(billSplit.total).toLocaleString()}₮</span>
             </div>
             <div className="flex justify-between text-[9px] font-pixel">
               <span className="text-gray-400">EQUAL SHARE</span>
-              <span className="text-pixel-yellow">${billSplit.share.toFixed(2)}</span>
+              <span className="text-pixel-yellow">{Math.round(billSplit.share).toLocaleString()}₮</span>
             </div>
           </div>
 
@@ -885,7 +1007,7 @@ export default function RoomPage() {
                         <span className="text-gray-500"> → </span>
                         <span className="text-pixel-green">{t.to}</span>
                       </div>
-                      <span className="text-pixel-yellow text-[9px] font-pixel">${t.amount.toFixed(2)}</span>
+                      <span className="text-pixel-yellow text-[9px] font-pixel">{Math.round(t.amount).toLocaleString()}₮</span>
                     </div>
                   ))}
                 </div>
@@ -932,7 +1054,7 @@ export default function RoomPage() {
                       <span className="text-gray-500"> → </span>
                       <span className="text-pixel-green">{t.to}</span>
                     </div>
-                    <span className="text-pixel-yellow text-[9px] font-pixel">${t.amount.toFixed(2)}</span>
+                    <span className="text-pixel-yellow text-[9px] font-pixel">{Math.round(t.amount).toLocaleString()}₮</span>
                   </div>
                 ))}
               </div>
@@ -940,6 +1062,22 @@ export default function RoomPage() {
             <div className="flex flex-col gap-2">
               <button className="pixel-btn w-full" onClick={handleEndRoom}>✔ END THE NIGHT</button>
               <button className="pixel-btn pixel-btn-pink w-full" onClick={() => setShowBillSplit(false)}>✖ KEEP DRINKING</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Leave confirmation ── */}
+      {showLeaveConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="pixel-card p-5 max-w-xs w-full text-center animate-slide-up" style={{ borderColor:"#ff0080" }}>
+            <div className="text-pixel-pink text-xs font-pixel mb-3">LEAVE ROOM?</div>
+            <div className="text-[9px] text-gray-400 font-pixel mb-5 leading-relaxed">
+              YOU CAN REJOIN WITH THE SAME NICKNAME LATER.
+            </div>
+            <div className="flex gap-3">
+              <button className="pixel-btn pixel-btn-pink flex-1" onClick={confirmLeave}>✔ LEAVE</button>
+              <button className="pixel-btn flex-1" onClick={() => setShowLeaveConfirm(false)}>✖ STAY</button>
             </div>
           </div>
         </div>

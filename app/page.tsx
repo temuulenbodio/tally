@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 type Mode = "home" | "create" | "setup" | "join";
 interface DrinkEntry { name: string; price: number; emoji: string }
@@ -10,6 +11,7 @@ const DRINK_EMOJIS = ["🍺","🍷","🍸","🍹","🥂","🍾","🥃","🧉","�
 
 export default function HomePage() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [mode, setMode] = useState<Mode>("home");
 
   // Create flow
@@ -137,6 +139,13 @@ export default function HomePage() {
             >
               ▶ JOIN ROOM
             </button>
+            <button
+              className="pixel-btn text-base w-full"
+              style={{ borderColor: "#9b59b6", color: "#9b59b6" }}
+              onClick={() => router.push("/profile")}
+            >
+              {session ? "★ MY STATS" : "★ SIGN IN FOR STATS"}
+            </button>
           </div>
         )}
 
@@ -196,7 +205,7 @@ export default function HomePage() {
                       <div className="flex flex-col gap-1">
                         <span className="text-[9px] text-pixel-green font-pixel">{d.name}</span>
                         <span className="text-[8px] text-pixel-yellow font-pixel">
-                          ${d.price.toFixed(2)}
+                          {Math.round(d.price).toLocaleString()}₮
                         </span>
                       </div>
                     </div>
