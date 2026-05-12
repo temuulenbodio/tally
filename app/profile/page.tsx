@@ -140,7 +140,7 @@ export default function ProfilePage() {
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
   while (cells.length % 7 !== 0) cells.push(null);
 
-  const monthTotal = cells.reduce((s, d) => d ? s + (byDate[dk(d)] ?? 0) : s, 0);
+  const monthTotal = cells.reduce<number>((s, d) => d ? s + (byDate[dk(d)] ?? 0) : s, 0);
   const monthSpent = records
     .filter(r => { const d = new Date(r.timestamp); return d.getFullYear()===year && d.getMonth()===month; })
     .reduce((s, r) => s + r.price, 0);
