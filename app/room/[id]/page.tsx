@@ -101,11 +101,13 @@ export default function RoomPage() {
   const [addDrinkError, setAddDrinkError] = useState("");
   const [addDrinkLoading, setAddDrinkLoading] = useState(false);
 
-  const pollRef        = useRef<ReturnType<typeof setInterval> | null>(null);
-  const waterTimerRef  = useRef<ReturnType<typeof setTimeout>  | null>(null);
+  const pollRef        = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const waterTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notFoundCount  = useRef(0);
   const lastSuccessRef = useRef<number>(Date.now());
   const autoJoinedRef  = useRef(false);
+  const hasGameRef     = useRef(false);
+  const activeTabRef   = useRef<"drinks"|"games"|"debts"|"total">("drinks");
 
   // ── fetch ───────────────────────────────────────────────────────────────
   const fetchRoom = useCallback(async () => {
@@ -121,6 +123,7 @@ export default function RoomPage() {
       notFoundCount.current = 0;
       lastSuccessRef.current = Date.now();
       const data: RoomData = await res.json();
+      hasGameRef.current = !!data.activeGame;
       setRoom(data);
       const me = data.members.find(m => m.nickname === nickname);
       if (me) { setDrinkCount(me.drinks); setTotalSpent(me.totalSpent ?? 0); }
@@ -153,13 +156,27 @@ export default function RoomPage() {
       .catch(() => {});
   }, [authStatus, session, roomId]);
 
+  useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
+
   useEffect(() => {
     if (!nickname) return;
-    fetchRoom();
-    const interval = activeTab === "games" && room?.activeGame?.status === "active" ? 500 : 3000;
-    pollRef.current = setInterval(fetchRoom, interval);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [nickname, fetchRoom, activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+    let cancelled = false;
+
+    async function poll() {
+      if (cancelled) return;
+      await fetchRoom();
+      if (cancelled) return;
+      const onGamesTab = activeTabRef.current === "games";
+      const delay = (onGamesTab || hasGameRef.current) ? 500 : 3000;
+      pollRef.current = setTimeout(poll, delay);
+    }
+
+    poll();
+    return () => {
+      cancelled = true;
+      if (pollRef.current) clearTimeout(pollRef.current);
+    };
+  }, [nickname, fetchRoom]);
 
   useEffect(() => () => { if (waterTimerRef.current) clearTimeout(waterTimerRef.current); }, []);
 
