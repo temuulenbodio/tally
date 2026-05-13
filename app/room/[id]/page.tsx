@@ -106,6 +106,7 @@ export default function RoomPage() {
   const [sbSubmitted,  setSbSubmitted]  = useState(false);
   const [bottleAngle,  setBottleAngle]  = useState(0);
   const [bottleSpinning, setBottleSpinning] = useState(false);
+  const [sbDismissed,  setSbDismissed]  = useState(false);
   const [showAddDrink,  setShowAddDrink]  = useState(false);
   const [newDrinkName,  setNewDrinkName]  = useState("");
   const [newDrinkPrice, setNewDrinkPrice] = useState("");
@@ -215,6 +216,11 @@ export default function RoomPage() {
     setShotFired(false);
     if (room?.activeGame) setGamesScreen("duel");
   }, [room?.activeGame?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // reset spin bottle dismissed state on new game
+  useEffect(() => {
+    if (sbGame?.status === "collecting") setSbDismissed(false);
+  }, [sbGame?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // shootout green-light timer
   useEffect(() => {
@@ -753,202 +759,6 @@ export default function RoomPage() {
             </div>
           )}
 
-          {/* ── Spin Bottle: collecting ── */}
-          {sbGame?.status === "collecting" && (
-            <div className="flex flex-col gap-3">
-              <div className="text-[10px] font-pixel mb-1" style={{ color:"#9b59b6" }}>
-                <span style={{ fontFamily:"initial" }}>🍾</span> SPIN THE BOTTLE — COLLECTING
-              </div>
-              {sbGame.mode === "custom" && (
-                <div className="pixel-card p-4" style={{ borderColor:"#9b59b6" }}>
-                  <div className="text-[8px] text-gray-400 font-pixel mb-2">YOUR QUESTION:</div>
-                  {sbSubmitted || sbGame.playerQuestions[nickname ?? ""] ? (
-                    <div className="text-[9px] font-pixel" style={{ color:"#9b59b6" }}>
-                      ✔ SUBMITTED: &quot;{sbGame.playerQuestions[nickname ?? ""]}&quot;
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      <textarea
-                        className="pixel-input w-full text-[8px]"
-                        style={{ minHeight:"60px", resize:"none" }}
-                        placeholder="TYPE YOUR QUESTION..."
-                        value={sbQuestion}
-                        onChange={e => setSbQuestion(e.target.value)}
-                        maxLength={200}
-                      />
-                      <button
-                        className="pixel-btn text-[8px] w-full"
-                        style={{ borderColor:"#9b59b6", color:"#9b59b6" }}
-                        disabled={!sbQuestion.trim()}
-                        onClick={async () => {
-                          await sbAction("submit_question", { question: sbQuestion });
-                          setSbSubmitted(true);
-                        }}>
-                        ✔ SUBMIT
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Ready players */}
-              <div className="pixel-card p-3" style={{ borderColor:"#9b59b6" }}>
-                <div className="text-[8px] text-gray-500 font-pixel mb-2">
-                  READY: {sbGame.readyPlayers.length}/{room?.members.length ?? 0}
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {(room?.members ?? []).map(m => {
-                    const ready = sbGame.readyPlayers.includes(m.nickname);
-                    return (
-                      <span key={m.nickname} className="text-[7px] font-pixel px-2 py-1 border"
-                        style={{ borderColor: ready ? "#9b59b6" : "#2a2a5e", color: ready ? "#9b59b6" : "#555" }}>
-                        {ready ? "✔" : "○"} {m.nickname}
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                {!iAmReady && (
-                  <button
-                    className="pixel-btn w-full text-[9px]"
-                    style={{ borderColor:"#9b59b6", color:"#9b59b6" }}
-                    disabled={sbGame.mode === "custom" && !sbGame.playerQuestions[nickname ?? ""]}
-                    onClick={() => sbAction("ready")}>
-                    ✔ I&apos;M READY
-                  </button>
-                )}
-                {iAmReady && (
-                  <div className="text-center text-[8px] font-pixel" style={{ color:"#9b59b6" }}>
-                    WAITING FOR OTHERS<span className="blink">...</span>
-                  </div>
-                )}
-                {isHost && (
-                  <button
-                    className="pixel-btn pixel-btn-yellow w-full text-[9px]"
-                    onClick={() => sbAction("force_start")}>
-                    ▶ FORCE START
-                  </button>
-                )}
-                {isHost && (
-                  <button className="pixel-btn pixel-btn-pink w-full text-[9px]"
-                    onClick={() => sbAction("end")}>
-                    ✖ CANCEL GAME
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ── Spin Bottle: active ── */}
-          {sbGame?.status === "active" && (
-            <div className="flex flex-col gap-4">
-              <div className="text-[10px] font-pixel text-center" style={{ color:"#9b59b6" }}>
-                <span style={{ fontFamily:"initial" }}>🍾</span> SPIN THE BOTTLE
-              </div>
-
-              {/* Bottle SVG + player circle */}
-              {(() => {
-                const players = room?.members.map(m => m.nickname) ?? [];
-                const n = players.length;
-                const r = 100;
-                const cx = 140, cy = 140;
-                return (
-                  <div className="flex justify-center">
-                    <svg width="280" height="280" style={{ overflow:"visible" }}>
-                      {players.map((p, i) => {
-                        const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
-                        const px = cx + r * Math.cos(angle);
-                        const py = cy + r * Math.sin(angle);
-                        const isTarget = sbGame.currentTarget === p;
-                        return (
-                          <g key={p}>
-                            <circle cx={px} cy={py} r="20"
-                              fill={isTarget ? "#9b59b6" : "#1a1a3e"}
-                              stroke={isTarget ? "#d4a1f0" : "#2a2a5e"}
-                              strokeWidth="2" />
-                            <text x={px} y={py + 4} textAnchor="middle"
-                              fill={isTarget ? "#fff" : "#555"}
-                              style={{ fontSize:"6px", fontFamily:"'Press Start 2P',cursive" }}>
-                              {p.length > 5 ? p.slice(0, 5) : p}
-                            </text>
-                          </g>
-                        );
-                      })}
-                      {/* Bottle needle */}
-                      <g transform={`translate(${cx},${cy})`}>
-                        <line
-                          x1="0" y1="0" x2="0" y2={-(r - 28)}
-                          stroke="#9b59b6" strokeWidth="4" strokeLinecap="round"
-                          style={{
-                            transformOrigin: "0 0",
-                            transform: `rotate(${bottleAngle}deg)`,
-                            transition: bottleSpinning ? "transform 2.5s cubic-bezier(0.17,0.67,0.12,1)" : "none",
-                          }}
-                        />
-                        <circle cx="0" cy="0" r="8" fill="#9b59b6" />
-                      </g>
-                    </svg>
-                  </div>
-                );
-              })()}
-
-              {/* Question reveal */}
-              {sbGame.currentTarget && sbGame.currentQuestion && !bottleSpinning && (
-                <div className="pixel-card p-4 text-center" style={{ borderColor:"#9b59b6" }}>
-                  <div className="text-[8px] text-gray-400 font-pixel mb-2">
-                    <span style={{ color:"#d4a1f0" }}>{sbGame.currentTarget}</span> MUST ANSWER:
-                  </div>
-                  <div className="text-[9px] font-pixel leading-relaxed" style={{ color:"#9b59b6" }}>
-                    &quot;{sbGame.currentQuestion}&quot;
-                  </div>
-                </div>
-              )}
-
-              {isHost && (
-                <div className="flex flex-col gap-2">
-                  <button
-                    className="pixel-btn w-full text-[9px]"
-                    style={{ borderColor:"#9b59b6", color:"#9b59b6" }}
-                    disabled={bottleSpinning}
-                    onClick={handleSpin}>
-                    {bottleSpinning ? "SPINNING..." : "🍾 SPIN"}
-                  </button>
-                  <button className="pixel-btn pixel-btn-pink w-full text-[9px]"
-                    onClick={() => sbAction("end")}>
-                    ✖ END GAME
-                  </button>
-                </div>
-              )}
-              {!isHost && (
-                <div className="text-center text-[8px] text-gray-500 font-pixel">
-                  {sbGame.createdBy} IS THE HOST
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── Spin Bottle: finished ── */}
-          {sbGame?.status === "finished" && gamesScreen === "lobby" && (
-            <div className="pixel-card p-4 mb-3" style={{ borderColor:"#9b59b6" }}>
-              <div className="text-[10px] font-pixel mb-3 text-center" style={{ color:"#9b59b6" }}>
-                <span style={{ fontFamily:"initial" }}>🍾</span> GAME OVER
-              </div>
-              {sbGame.history.length > 0 && (
-                <div className="flex flex-col gap-2 mb-3 max-h-40 overflow-y-auto">
-                  {sbGame.history.map((h, i) => (
-                    <div key={i} className="text-[7px] font-pixel leading-relaxed border-b border-pixel-border pb-1">
-                      <span style={{ color:"#d4a1f0" }}>{h.target}</span>
-                      <span className="text-gray-500"> — </span>
-                      <span className="text-gray-300">&quot;{h.question}&quot;</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Challenge: pick opponent */}
           {gamesScreen === "challenge" && (
             <div className="flex flex-col gap-3">
@@ -1380,6 +1190,278 @@ export default function RoomPage() {
             <div className="text-[9px] font-pixel mt-1" style={{ color:"#00d4ff" }}>DRINK SOME WATER!</div>
             <div className="text-[8px] text-gray-500 font-pixel mt-1">STAY HYDRATED</div>
           </div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* SPIN THE BOTTLE OVERLAY — shown over any tab                       */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {sbGame && (sbGame.status === "collecting" || sbGame.status === "active" || (sbGame.status === "finished" && !sbDismissed)) && (
+        <div className="fixed inset-0 flex flex-col" style={{ background: "#07071a", zIndex: 55 }}>
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 flex-shrink-0"
+            style={{ borderBottom: "2px solid #9b59b6" }}>
+            <div className="font-pixel text-[10px]" style={{ color: "#9b59b6" }}>
+              <span style={{ fontFamily: "initial" }}>🍾</span> SPIN THE BOTTLE
+            </div>
+            <div className="flex items-center gap-3">
+              {sbGame.status === "collecting" && isHost && (
+                <button className="font-pixel text-[8px] text-gray-500 hover:text-pixel-pink"
+                  onClick={() => sbAction("end")}>
+                  ✖ CANCEL
+                </button>
+              )}
+              {sbGame.status === "active" && isHost && (
+                <button className="font-pixel text-[8px]" style={{ color: "#ff0080" }}
+                  onClick={() => sbAction("end")}>
+                  ✖ END
+                </button>
+              )}
+              {sbGame.status === "finished" && (
+                <button className="font-pixel text-[9px] text-gray-400"
+                  onClick={() => setSbDismissed(true)}>
+                  ✖ CLOSE
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* ── Collecting phase ── */}
+          {sbGame.status === "collecting" && (
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+              <div className="text-center text-[8px] text-gray-500 font-pixel">
+                {sbGame.mode === "custom" ? "SUBMIT YOUR QUESTION THEN MARK READY" : "MARK READY WHEN SET"}
+              </div>
+
+              {sbGame.mode === "custom" && (
+                <div className="p-4" style={{ border: "2px solid #9b59b6", background: "#0f0a1e" }}>
+                  <div className="text-[8px] text-gray-400 font-pixel mb-2">YOUR QUESTION:</div>
+                  {(sbSubmitted || sbGame.playerQuestions[nickname ?? ""]) ? (
+                    <div className="text-[9px] font-pixel" style={{ color: "#9b59b6" }}>
+                      ✔ &quot;{sbGame.playerQuestions[nickname ?? ""]}&quot;
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <textarea
+                        className="pixel-input w-full text-[8px]"
+                        style={{ minHeight: "60px", resize: "none" }}
+                        placeholder="TYPE YOUR QUESTION..."
+                        value={sbQuestion}
+                        onChange={e => setSbQuestion(e.target.value)}
+                        maxLength={200}
+                      />
+                      <button
+                        className="pixel-btn w-full text-[8px]"
+                        style={{ borderColor: "#9b59b6", color: "#9b59b6" }}
+                        disabled={!sbQuestion.trim()}
+                        onClick={async () => {
+                          await sbAction("submit_question", { question: sbQuestion });
+                          setSbSubmitted(true);
+                        }}>
+                        ✔ SUBMIT
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="p-4" style={{ border: "2px solid #2a2a5e", background: "#0a0a1a" }}>
+                <div className="text-[8px] text-gray-500 font-pixel mb-3">
+                  READY — {sbGame.readyPlayers.length} / {room?.members.length ?? 0}
+                </div>
+                <div className="grid grid-cols-2 gap-y-2 gap-x-3">
+                  {(room?.members ?? []).map(m => {
+                    const ready = sbGame.readyPlayers.includes(m.nickname);
+                    const isMe = m.nickname === nickname;
+                    return (
+                      <div key={m.nickname} className="flex items-center gap-2">
+                        <div style={{
+                          width: 10, height: 10, borderRadius: "50%", flexShrink: 0,
+                          background: ready ? "#9b59b6" : "transparent",
+                          border: "2px solid " + (ready ? "#9b59b6" : "#333"),
+                        }} />
+                        <span className="font-pixel text-[7px] truncate"
+                          style={{ color: isMe ? "#d4a1f0" : ready ? "#aaa" : "#555" }}>
+                          {m.nickname}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                {!iAmReady ? (
+                  <button
+                    className="pixel-btn w-full"
+                    style={{ borderColor: "#9b59b6", color: "#9b59b6" }}
+                    disabled={sbGame.mode === "custom" && !sbGame.playerQuestions[nickname ?? ""]}
+                    onClick={() => sbAction("ready")}>
+                    ✔ I&apos;M READY
+                  </button>
+                ) : (
+                  <div className="text-center text-[9px] font-pixel py-2" style={{ color: "#9b59b6" }}>
+                    WAITING FOR OTHERS<span className="blink">...</span>
+                  </div>
+                )}
+                {isHost && (
+                  <button className="pixel-btn pixel-btn-yellow w-full"
+                    onClick={() => sbAction("force_start")}>
+                    ▶ FORCE START
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Active phase ── */}
+          {sbGame.status === "active" && (() => {
+            const players = room?.members.map(m => m.nickname) ?? [];
+            const n = Math.max(players.length, 1);
+            const SIZE = 280;
+            const half = SIZE / 2;
+            const circleR = 105;
+            const bubbleR = 26;
+            const needleLen = circleR - bubbleR - 8;
+            return (
+              <div className="flex-1 flex flex-col overflow-hidden">
+                {/* Circle */}
+                <div className="flex-1 flex items-center justify-center py-3">
+                  <div style={{ position: "relative", width: SIZE, height: SIZE, flexShrink: 0 }}>
+
+                    {/* Player bubbles */}
+                    {players.map((p, i) => {
+                      const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
+                      const px = half + circleR * Math.cos(angle);
+                      const py = half + circleR * Math.sin(angle);
+                      const isTarget = sbGame.currentTarget === p;
+                      const isMe = p === nickname;
+                      return (
+                        <div key={p} style={{
+                          position: "absolute",
+                          left: px - bubbleR, top: py - bubbleR,
+                          width: bubbleR * 2, height: bubbleR * 2,
+                          borderRadius: "50%",
+                          background: isTarget ? "#9b59b6" : "#0d0d20",
+                          border: `2px solid ${isTarget ? "#d4a1f0" : isMe ? "#5a3a8a" : "#2a2a5e"}`,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          boxShadow: isTarget ? "0 0 18px #9b59b6, 0 0 36px rgba(155,89,182,0.35)" : "none",
+                          transition: "all 0.4s ease",
+                        }}>
+                          <span style={{
+                            fontFamily: "'Press Start 2P', cursive",
+                            fontSize: 5, color: isTarget ? "#fff" : isMe ? "#9b7abf" : "#444",
+                            textAlign: "center", lineHeight: 1.4,
+                            maxWidth: bubbleR * 2 - 8, overflow: "hidden", wordBreak: "break-all",
+                          }}>
+                            {p.length > 6 ? p.slice(0, 6) : p}
+                          </span>
+                        </div>
+                      );
+                    })}
+
+                    {/* Spinning needle */}
+                    <div style={{
+                      position: "absolute", left: half, top: half,
+                      width: 0, height: 0,
+                      transform: `rotate(${bottleAngle}deg)`,
+                      transition: bottleSpinning
+                        ? "transform 2.5s cubic-bezier(0.17,0.67,0.12,1)"
+                        : "none",
+                    }}>
+                      {/* Tip (up) */}
+                      <div style={{
+                        position: "absolute", left: -4, bottom: 8,
+                        width: 8, height: needleLen,
+                        background: "linear-gradient(to bottom, #e0b0ff, #9b59b6)",
+                        borderRadius: "4px 4px 0 0",
+                      }} />
+                      {/* Tail (down) */}
+                      <div style={{
+                        position: "absolute", left: -3, top: 8,
+                        width: 6, height: needleLen * 0.35,
+                        background: "#3a1a5e",
+                        borderRadius: "0 0 3px 3px",
+                      }} />
+                    </div>
+
+                    {/* Center pin */}
+                    <div style={{
+                      position: "absolute", left: half - 11, top: half - 11,
+                      width: 22, height: 22, borderRadius: "50%",
+                      background: "#9b59b6",
+                      border: "3px solid #d4a1f0",
+                      boxShadow: "0 0 14px rgba(155,89,182,0.9)",
+                      zIndex: 2,
+                    }} />
+                  </div>
+                </div>
+
+                {/* Question + controls */}
+                <div className="px-4 pb-5 flex-shrink-0 flex flex-col gap-3">
+                  {sbGame.currentTarget && sbGame.currentQuestion && !bottleSpinning ? (
+                    <div className="p-4 text-center animate-slide-up" style={{
+                      border: "2px solid #9b59b6", background: "#0f0a1e",
+                      boxShadow: "4px 4px 0 #3a1a5e",
+                    }}>
+                      <div className="text-[8px] text-gray-500 font-pixel mb-2">
+                        <span style={{ color: "#d4a1f0" }}>{sbGame.currentTarget}</span> MUST ANSWER:
+                      </div>
+                      <div className="text-[9px] font-pixel leading-loose" style={{ color: "#e0c0ff" }}>
+                        &quot;{sbGame.currentQuestion}&quot;
+                      </div>
+                    </div>
+                  ) : !bottleSpinning && (
+                    <div className="text-center text-[8px] text-gray-600 font-pixel py-2">
+                      {isHost ? "PRESS SPIN TO START" : `WAITING FOR ${sbGame.createdBy.toUpperCase()} TO SPIN...`}
+                    </div>
+                  )}
+                  {isHost ? (
+                    <button
+                      className="pixel-btn w-full"
+                      style={{ borderColor: bottleSpinning ? "#3a1a5e" : "#9b59b6", color: bottleSpinning ? "#3a1a5e" : "#9b59b6" }}
+                      disabled={bottleSpinning}
+                      onClick={handleSpin}>
+                      <span style={{ fontFamily: "initial" }}>🍾</span>{bottleSpinning ? " SPINNING..." : " SPIN"}
+                    </button>
+                  ) : (
+                    <div className="text-center text-[8px] text-gray-600 font-pixel">
+                      {sbGame.createdBy.toUpperCase()} IS THE HOST
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ── Finished phase ── */}
+          {sbGame.status === "finished" && (
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+              <div className="text-center py-3">
+                <div className="text-2xl mb-2" style={{ fontFamily: "initial" }}>🍾</div>
+                <div className="text-[10px] font-pixel mb-1" style={{ color: "#9b59b6" }}>GAME OVER</div>
+                <div className="text-[8px] text-gray-600 font-pixel">{sbGame.history.length} ROUNDS PLAYED</div>
+              </div>
+              {sbGame.history.length === 0 ? (
+                <div className="text-center text-gray-600 text-[8px] font-pixel py-4">NO SPINS YET</div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {[...sbGame.history].reverse().map((h, i) => (
+                    <div key={i} className="p-3" style={{ border: "2px solid #2a1a4e", background: "#0a081a" }}>
+                      <div className="font-pixel text-[8px] mb-1" style={{ color: "#d4a1f0" }}>
+                        {sbGame.history.length - i}. {h.target}
+                      </div>
+                      <div className="text-[7px] text-gray-500 font-pixel leading-relaxed">
+                        &quot;{h.question}&quot;
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
       )}
 
