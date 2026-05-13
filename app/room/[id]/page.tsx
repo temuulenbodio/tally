@@ -219,8 +219,8 @@ export default function RoomPage() {
 
   // reset spin bottle dismissed state on new game
   useEffect(() => {
-    if (sbGame?.status === "collecting") setSbDismissed(false);
-  }, [sbGame?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (room?.spinBottleGame?.status === "collecting") setSbDismissed(false);
+  }, [room?.spinBottleGame?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // shootout green-light timer
   useEffect(() => {
