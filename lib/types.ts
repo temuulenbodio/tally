@@ -47,6 +47,19 @@ export interface DrinkRecord {
   timestamp: number;
 }
 
+export interface SpinBottleGame {
+  id: string;
+  status: "collecting" | "active" | "finished";
+  createdBy: string;
+  mode: "default" | "custom";
+  playerQuestions: { [nickname: string]: string };
+  readyPlayers: string[];
+  currentTarget: string | null;
+  currentQuestion: string | null;
+  usedQuestions: string[];
+  history: { target: string; question: string }[];
+}
+
 export interface Room {
   id: string;
   name: string;
@@ -56,4 +69,5 @@ export interface Room {
   activeGame: GameState | null;
   debts: DrinkDebt[];
   endedAt: number | null;
+  spinBottleGame?: SpinBottleGame | null;
 }

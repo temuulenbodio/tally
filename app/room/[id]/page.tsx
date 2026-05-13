@@ -14,11 +14,18 @@ interface GameState  {
   startedAt: number | null; winner: string | null; finishedAt: number | null;
 }
 interface DrinkDebt  { id: string; from: string; to: string; gameId: string; createdAt: number; settled: boolean }
+interface SpinBottleGame {
+  id: string; status: "collecting" | "active" | "finished";
+  createdBy: string; mode: "default" | "custom";
+  playerQuestions: { [n: string]: string }; readyPlayers: string[];
+  currentTarget: string | null; currentQuestion: string | null;
+  usedQuestions: string[]; history: { target: string; question: string }[];
+}
 interface RoomData   {
   id: string; name: string;
   drinkTypes: DrinkType[]; members: Member[];
   activeGame: GameState | null; debts: DrinkDebt[];
-  endedAt: number | null;
+  endedAt: number | null; spinBottleGame: SpinBottleGame | null;
 }
 
 const DRINK_EMOJIS = ["🍺","🍷","🍸","🍹","🥂","🍾","🥃","🧉","🫗","🧃","🥤","☕"];
@@ -94,6 +101,11 @@ export default function RoomPage() {
   const [gameError,    setGameError]    = useState("");
   const [showBillSplit, setShowBillSplit] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [sbMode,       setSbMode]       = useState<"default"|"custom">("default");
+  const [sbQuestion,   setSbQuestion]   = useState("");
+  const [sbSubmitted,  setSbSubmitted]  = useState(false);
+  const [bottleAngle,  setBottleAngle]  = useState(0);
+  const [bottleSpinning, setBottleSpinning] = useState(false);
   const [showAddDrink,  setShowAddDrink]  = useState(false);
   const [newDrinkName,  setNewDrinkName]  = useState("");
   const [newDrinkPrice, setNewDrinkPrice] = useState("");
@@ -344,6 +356,33 @@ export default function RoomPage() {
     router.push("/");
   }
 
+  async function sbAction(action: string, extra?: object) {
+    await fetch(`/api/rooms/${roomId}/spinbottle`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, nickname, ...extra }),
+    });
+    await fetchRoom();
+  }
+
+  async function handleSpin() {
+    if (bottleSpinning) return;
+    const res = await fetch(`/api/rooms/${roomId}/spinbottle`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "spin", nickname }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.spinBottleGame?.currentTarget) return;
+
+    const players = room?.members.map(m => m.nickname) ?? [];
+    const targetIdx = players.indexOf(data.spinBottleGame.currentTarget);
+    const targetDeg = -90 + (targetIdx / Math.max(players.length, 1)) * 360;
+    const cur = bottleAngle % 360;
+    const delta = ((targetDeg - cur + 360) % 360);
+    setBottleSpinning(true);
+    setBottleAngle(bottleAngle + 3 * 360 + delta);
+    setTimeout(async () => { setBottleSpinning(false); await fetchRoom(); }, 2600);
+  }
+
   async function handleAddDrinkType(e: React.FormEvent) {
     e.preventDefault();
     setAddDrinkError("");
@@ -409,6 +448,9 @@ export default function RoomPage() {
   const statusIdx   = getStatusIdx(drinkCount);
   const curStatus   = STATUSES[statusIdx];
   const game        = room?.activeGame ?? null;
+  const sbGame      = room?.spinBottleGame ?? null;
+  const isHost      = sbGame?.createdBy === nickname;
+  const iAmReady    = sbGame?.readyPlayers.includes(nickname ?? "") ?? false;
   const now         = Date.now();
   const isCountdown = game?.status === "active" && game.startedAt != null && game.startedAt > now;
   const isActive    = game?.status === "active" && game.startedAt != null && game.startedAt <= now;
@@ -674,6 +716,232 @@ export default function RoomPage() {
                   </button>
                 </div>
               </div>
+              {/* Spin the Bottle */}
+              {!sbGame || sbGame.status === "finished" ? (
+                <div className="pixel-card p-4" style={{ borderColor:"#9b59b6" }}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="text-[10px] font-pixel mb-1" style={{ color:"#9b59b6" }}>
+                        <span style={{ fontFamily:"initial" }}>🍾</span> SPIN THE BOTTLE
+                      </div>
+                      <div className="text-[8px] text-gray-400 font-pixel leading-relaxed">
+                        GROUP GAME. SPIN &amp; ANSWER<br />QUESTIONS. NO ESCAPE.
+                      </div>
+                      <div className="flex gap-2 mt-2">
+                        {(["default","custom"] as const).map(m => (
+                          <button key={m} type="button"
+                            className="text-[7px] font-pixel px-2 py-1 border"
+                            style={{ borderColor: sbMode===m ? "#9b59b6":"#2a2a5e", color: sbMode===m ? "#9b59b6":"#555" }}
+                            onClick={() => setSbMode(m)}>
+                            {m === "default" ? "20 BUILT-IN" : "CUSTOM Q"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <button className="pixel-btn flex-shrink-0 text-[8px]"
+                      style={{ padding:"10px 14px", borderColor:"#9b59b6", color:"#9b59b6" }}
+                      onClick={() => sbAction("create", { mode: sbMode })}>
+                      PLAY ▶
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          )}
+
+          {/* ── Spin Bottle: collecting ── */}
+          {sbGame?.status === "collecting" && (
+            <div className="flex flex-col gap-3">
+              <div className="text-[10px] font-pixel mb-1" style={{ color:"#9b59b6" }}>
+                <span style={{ fontFamily:"initial" }}>🍾</span> SPIN THE BOTTLE — COLLECTING
+              </div>
+              {sbGame.mode === "custom" && (
+                <div className="pixel-card p-4" style={{ borderColor:"#9b59b6" }}>
+                  <div className="text-[8px] text-gray-400 font-pixel mb-2">YOUR QUESTION:</div>
+                  {sbSubmitted || sbGame.playerQuestions[nickname ?? ""] ? (
+                    <div className="text-[9px] font-pixel" style={{ color:"#9b59b6" }}>
+                      ✔ SUBMITTED: &quot;{sbGame.playerQuestions[nickname ?? ""]}&quot;
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <textarea
+                        className="pixel-input w-full text-[8px]"
+                        style={{ minHeight:"60px", resize:"none" }}
+                        placeholder="TYPE YOUR QUESTION..."
+                        value={sbQuestion}
+                        onChange={e => setSbQuestion(e.target.value)}
+                        maxLength={200}
+                      />
+                      <button
+                        className="pixel-btn text-[8px] w-full"
+                        style={{ borderColor:"#9b59b6", color:"#9b59b6" }}
+                        disabled={!sbQuestion.trim()}
+                        onClick={async () => {
+                          await sbAction("submit_question", { question: sbQuestion });
+                          setSbSubmitted(true);
+                        }}>
+                        ✔ SUBMIT
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Ready players */}
+              <div className="pixel-card p-3" style={{ borderColor:"#9b59b6" }}>
+                <div className="text-[8px] text-gray-500 font-pixel mb-2">
+                  READY: {sbGame.readyPlayers.length}/{room?.members.length ?? 0}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {(room?.members ?? []).map(m => {
+                    const ready = sbGame.readyPlayers.includes(m.nickname);
+                    return (
+                      <span key={m.nickname} className="text-[7px] font-pixel px-2 py-1 border"
+                        style={{ borderColor: ready ? "#9b59b6" : "#2a2a5e", color: ready ? "#9b59b6" : "#555" }}>
+                        {ready ? "✔" : "○"} {m.nickname}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                {!iAmReady && (
+                  <button
+                    className="pixel-btn w-full text-[9px]"
+                    style={{ borderColor:"#9b59b6", color:"#9b59b6" }}
+                    disabled={sbGame.mode === "custom" && !sbGame.playerQuestions[nickname ?? ""]}
+                    onClick={() => sbAction("ready")}>
+                    ✔ I&apos;M READY
+                  </button>
+                )}
+                {iAmReady && (
+                  <div className="text-center text-[8px] font-pixel" style={{ color:"#9b59b6" }}>
+                    WAITING FOR OTHERS<span className="blink">...</span>
+                  </div>
+                )}
+                {isHost && (
+                  <button
+                    className="pixel-btn pixel-btn-yellow w-full text-[9px]"
+                    onClick={() => sbAction("force_start")}>
+                    ▶ FORCE START
+                  </button>
+                )}
+                {isHost && (
+                  <button className="pixel-btn pixel-btn-pink w-full text-[9px]"
+                    onClick={() => sbAction("end")}>
+                    ✖ CANCEL GAME
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Spin Bottle: active ── */}
+          {sbGame?.status === "active" && (
+            <div className="flex flex-col gap-4">
+              <div className="text-[10px] font-pixel text-center" style={{ color:"#9b59b6" }}>
+                <span style={{ fontFamily:"initial" }}>🍾</span> SPIN THE BOTTLE
+              </div>
+
+              {/* Bottle SVG + player circle */}
+              {(() => {
+                const players = room?.members.map(m => m.nickname) ?? [];
+                const n = players.length;
+                const r = 100;
+                const cx = 140, cy = 140;
+                return (
+                  <div className="flex justify-center">
+                    <svg width="280" height="280" style={{ overflow:"visible" }}>
+                      {players.map((p, i) => {
+                        const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
+                        const px = cx + r * Math.cos(angle);
+                        const py = cy + r * Math.sin(angle);
+                        const isTarget = sbGame.currentTarget === p;
+                        return (
+                          <g key={p}>
+                            <circle cx={px} cy={py} r="20"
+                              fill={isTarget ? "#9b59b6" : "#1a1a3e"}
+                              stroke={isTarget ? "#d4a1f0" : "#2a2a5e"}
+                              strokeWidth="2" />
+                            <text x={px} y={py + 4} textAnchor="middle"
+                              fill={isTarget ? "#fff" : "#555"}
+                              style={{ fontSize:"6px", fontFamily:"'Press Start 2P',cursive" }}>
+                              {p.length > 5 ? p.slice(0, 5) : p}
+                            </text>
+                          </g>
+                        );
+                      })}
+                      {/* Bottle needle */}
+                      <g transform={`translate(${cx},${cy})`}>
+                        <line
+                          x1="0" y1="0" x2="0" y2={-(r - 28)}
+                          stroke="#9b59b6" strokeWidth="4" strokeLinecap="round"
+                          style={{
+                            transformOrigin: "0 0",
+                            transform: `rotate(${bottleAngle}deg)`,
+                            transition: bottleSpinning ? "transform 2.5s cubic-bezier(0.17,0.67,0.12,1)" : "none",
+                          }}
+                        />
+                        <circle cx="0" cy="0" r="8" fill="#9b59b6" />
+                      </g>
+                    </svg>
+                  </div>
+                );
+              })()}
+
+              {/* Question reveal */}
+              {sbGame.currentTarget && sbGame.currentQuestion && !bottleSpinning && (
+                <div className="pixel-card p-4 text-center" style={{ borderColor:"#9b59b6" }}>
+                  <div className="text-[8px] text-gray-400 font-pixel mb-2">
+                    <span style={{ color:"#d4a1f0" }}>{sbGame.currentTarget}</span> MUST ANSWER:
+                  </div>
+                  <div className="text-[9px] font-pixel leading-relaxed" style={{ color:"#9b59b6" }}>
+                    &quot;{sbGame.currentQuestion}&quot;
+                  </div>
+                </div>
+              )}
+
+              {isHost && (
+                <div className="flex flex-col gap-2">
+                  <button
+                    className="pixel-btn w-full text-[9px]"
+                    style={{ borderColor:"#9b59b6", color:"#9b59b6" }}
+                    disabled={bottleSpinning}
+                    onClick={handleSpin}>
+                    {bottleSpinning ? "SPINNING..." : "🍾 SPIN"}
+                  </button>
+                  <button className="pixel-btn pixel-btn-pink w-full text-[9px]"
+                    onClick={() => sbAction("end")}>
+                    ✖ END GAME
+                  </button>
+                </div>
+              )}
+              {!isHost && (
+                <div className="text-center text-[8px] text-gray-500 font-pixel">
+                  {sbGame.createdBy} IS THE HOST
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Spin Bottle: finished ── */}
+          {sbGame?.status === "finished" && gamesScreen === "lobby" && (
+            <div className="pixel-card p-4 mb-3" style={{ borderColor:"#9b59b6" }}>
+              <div className="text-[10px] font-pixel mb-3 text-center" style={{ color:"#9b59b6" }}>
+                <span style={{ fontFamily:"initial" }}>🍾</span> GAME OVER
+              </div>
+              {sbGame.history.length > 0 && (
+                <div className="flex flex-col gap-2 mb-3 max-h-40 overflow-y-auto">
+                  {sbGame.history.map((h, i) => (
+                    <div key={i} className="text-[7px] font-pixel leading-relaxed border-b border-pixel-border pb-1">
+                      <span style={{ color:"#d4a1f0" }}>{h.target}</span>
+                      <span className="text-gray-500"> — </span>
+                      <span className="text-gray-300">&quot;{h.question}&quot;</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

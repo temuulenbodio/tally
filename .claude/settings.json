@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p /home/temuulen/tally-1/app/api/rooms/\\\\[id\\\\]/spinbottle)"
+    ],
+    "additionalDirectories": [
+      "/home/temuulen/tally-1/app/api/rooms/[id]"
+    ]
+  }
+}

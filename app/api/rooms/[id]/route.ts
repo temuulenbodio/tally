@@ -21,5 +21,6 @@ export async function GET(
     activeGame: room.activeGame ?? null,
     debts: (room.debts ?? []).filter((d) => !d.settled),
     endedAt: room.endedAt ?? null,
+    spinBottleGame: room.spinBottleGame ?? null,
   });
 }
