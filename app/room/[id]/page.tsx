@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import Pusher from "pusher-js";
 
 interface DrinkType  { name: string; price: number; emoji?: string }
 interface Member     { nickname: string; drinks: number; totalSpent: number; joinedAt: number }
@@ -197,25 +196,31 @@ export default function RoomPage() {
 
   useEffect(() => () => { if (waterTimerRef.current) clearTimeout(waterTimerRef.current); }, []);
 
-  // Pusher real-time subscription
+  // Pusher real-time subscription (dynamic import keeps pusher-js out of SSR)
   useEffect(() => {
     if (!nickname) return;
     const key = process.env.NEXT_PUBLIC_PUSHER_KEY;
     const cluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER;
     if (!key || !cluster) return;
-    const client = new Pusher(key, { cluster });
-    const ch = client.subscribe(`room-${roomId}`);
-    ch.bind("game-update", (data: { activeGame: GameState | null }) => {
-      setRoom(prev => prev ? { ...prev, activeGame: data.activeGame } : prev);
-      hasGameRef.current = !!(
-        data.activeGame &&
-        (data.activeGame.status === "active" || data.activeGame.status === "pending")
-      );
+    let unmounted = false;
+    let cleanup: (() => void) | null = null;
+    import("pusher-js").then(({ default: PusherJS }) => {
+      if (unmounted) return;
+      const pusherClient = new PusherJS(key, { cluster });
+      const ch = pusherClient.subscribe(`room-${roomId}`);
+      ch.bind("game-update", (data: { activeGame: GameState | null }) => {
+        setRoom(prev => prev ? { ...prev, activeGame: data.activeGame } : prev);
+        hasGameRef.current = !!(
+          data.activeGame &&
+          (data.activeGame.status === "active" || data.activeGame.status === "pending")
+        );
+      });
+      ch.bind("spinbottle-update", (data: { spinBottleGame: SpinBottleGame | null }) => {
+        setRoom(prev => prev ? { ...prev, spinBottleGame: data.spinBottleGame } : prev);
+      });
+      cleanup = () => { pusherClient.unsubscribe(`room-${roomId}`); pusherClient.disconnect(); };
     });
-    ch.bind("spinbottle-update", (data: { spinBottleGame: SpinBottleGame | null }) => {
-      setRoom(prev => prev ? { ...prev, spinBottleGame: data.spinBottleGame } : prev);
-    });
-    return () => { client.unsubscribe(`room-${roomId}`); client.disconnect(); };
+    return () => { unmounted = true; cleanup?.(); };
   }, [nickname, roomId]);
 
   // countdown timer
