@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getRoom, setRoom } from "@/lib/store";
+import { triggerRoomEvent } from "@/lib/pusher";
 import { SpinBottleGame } from "@/lib/types";
 import { randomUUID } from "crypto";
 
@@ -134,5 +135,6 @@ export async function POST(
   }
 
   await setRoom(roomId, room);
+  await triggerRoomEvent(roomId, "spinbottle-update", { spinBottleGame: room.spinBottleGame });
   return NextResponse.json({ success: true, spinBottleGame: room.spinBottleGame });
 }

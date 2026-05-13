@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mkdir -p /home/temuulen/tally-1/app/api/rooms/\\\\[id\\\\]/spinbottle)"
+      "Bash(mkdir -p /home/temuulen/tally-1/app/api/rooms/\\\\[id\\\\]/spinbottle)",
+      "Bash(git commit -m ' *)",
+      "Bash(git commit -m 'Fix: use room?.spinBottleGame before sbGame is declared *)"
     ],
     "additionalDirectories": [
       "/home/temuulen/tally-1/app/api/rooms/[id]"

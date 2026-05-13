@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getRoom, setRoom } from "@/lib/store";
+import { triggerRoomEvent } from "@/lib/pusher";
 import { GameState, DrinkDebt } from "@/lib/types";
 
 function generateChoices(target: number): number[] {
@@ -63,6 +64,7 @@ export async function POST(
     };
     room.activeGame = game;
     await setRoom(roomId, room);
+    await triggerRoomEvent(roomId, "game-update", { activeGame: game });
     return NextResponse.json({ game });
   }
 
@@ -80,6 +82,7 @@ export async function POST(
       g.startedAt = Date.now() + 5000;
     }
     await setRoom(roomId, room);
+    await triggerRoomEvent(roomId, "game-update", { activeGame: g });
     return NextResponse.json({ game: g });
   }
 
@@ -91,6 +94,7 @@ export async function POST(
     }
     room.activeGame = null;
     await setRoom(roomId, room);
+    await triggerRoomEvent(roomId, "game-update", { activeGame: null });
     return NextResponse.json({ declined: true });
   }
 
@@ -120,6 +124,7 @@ export async function POST(
     const loser = nickname === g.challenger ? g.challenged : g.challenger;
     room.debts = [...(room.debts ?? []), createDebt(loser, nickname, g.id)];
     await setRoom(roomId, room);
+    await triggerRoomEvent(roomId, "game-update", { activeGame: g });
     return NextResponse.json({ correct: true, game: g });
   }
 
@@ -145,6 +150,7 @@ export async function POST(
     const loser = nickname === g.challenger ? g.challenged : g.challenger;
     room.debts = [...(room.debts ?? []), createDebt(loser, nickname, g.id)];
     await setRoom(roomId, room);
+    await triggerRoomEvent(roomId, "game-update", { activeGame: g });
     return NextResponse.json({ won: true, game: g });
   }
 

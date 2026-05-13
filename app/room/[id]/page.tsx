@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
+import Pusher from "pusher-js";
 
 interface DrinkType  { name: string; price: number; emoji?: string }
 interface Member     { nickname: string; drinks: number; totalSpent: number; joinedAt: number }
@@ -183,8 +184,7 @@ export default function RoomPage() {
       if (cancelled) return;
       await fetchRoom();
       if (cancelled) return;
-      const onGamesTab = activeTabRef.current === "games";
-      const delay = (onGamesTab || hasGameRef.current) ? 500 : 3000;
+      const delay = 3000;
       pollRef.current = setTimeout(poll, delay);
     }
 
@@ -196,6 +196,27 @@ export default function RoomPage() {
   }, [nickname, fetchRoom]);
 
   useEffect(() => () => { if (waterTimerRef.current) clearTimeout(waterTimerRef.current); }, []);
+
+  // Pusher real-time subscription
+  useEffect(() => {
+    if (!nickname) return;
+    const key = process.env.NEXT_PUBLIC_PUSHER_KEY;
+    const cluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER;
+    if (!key || !cluster) return;
+    const client = new Pusher(key, { cluster });
+    const ch = client.subscribe(`room-${roomId}`);
+    ch.bind("game-update", (data: { activeGame: GameState | null }) => {
+      setRoom(prev => prev ? { ...prev, activeGame: data.activeGame } : prev);
+      hasGameRef.current = !!(
+        data.activeGame &&
+        (data.activeGame.status === "active" || data.activeGame.status === "pending")
+      );
+    });
+    ch.bind("spinbottle-update", (data: { spinBottleGame: SpinBottleGame | null }) => {
+      setRoom(prev => prev ? { ...prev, spinBottleGame: data.spinBottleGame } : prev);
+    });
+    return () => { client.unsubscribe(`room-${roomId}`); client.disconnect(); };
+  }, [nickname, roomId]);
 
   // countdown timer
   useEffect(() => {
@@ -300,7 +321,7 @@ export default function RoomPage() {
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({ action:"shoot", nickname }),
     });
-    if (res.ok) fetchRoom();
+    void res; fetchRoom();
   }
 
   async function handleAccept() {
@@ -330,7 +351,7 @@ export default function RoomPage() {
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({ action:"answer", nickname, answer }),
     });
-    if (res.ok) fetchRoom();
+    void res; fetchRoom();
   }
 
   async function handleSettle(debtId: string, drinkName: string) {
