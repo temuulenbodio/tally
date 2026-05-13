@@ -128,14 +128,18 @@ export default function RoomPage() {
       if (res.status === 404) {
         notFoundCount.current += 1;
         const timeSinceSuccess = Date.now() - lastSuccessRef.current;
-        if (notFoundCount.current >= 5 && timeSinceSuccess > 15000) setRoomNotFound(true);
+        if (notFoundCount.current >= 10 && timeSinceSuccess > 30000) setRoomNotFound(true);
         return;
       }
-      if (!res.ok) return;
       notFoundCount.current = 0;
+      if (!res.ok) return;
+      setRoomNotFound(false);
       lastSuccessRef.current = Date.now();
       const data: RoomData = await res.json();
-      hasGameRef.current = !!data.activeGame;
+      hasGameRef.current = !!(
+        data.activeGame &&
+        (data.activeGame.status === "active" || data.activeGame.status === "pending")
+      );
       setRoom(data);
       const me = data.members.find(m => m.nickname === nickname);
       if (me) { setDrinkCount(me.drinks); setTotalSpent(me.totalSpent ?? 0); }
