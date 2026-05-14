@@ -65,6 +65,7 @@ export default function HomePage() {
         body: JSON.stringify({ name: roomName.trim(), drinkTypes }),
       });
       const data = await res.json();
+      console.log("[create]", res.status, data);
       if (!res.ok) return setError(data.error ?? "Failed to create room");
       router.push(`/room/${data.id}`);
     } catch {
