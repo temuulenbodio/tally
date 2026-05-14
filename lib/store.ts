@@ -37,9 +37,13 @@ function getRedis(): Redis | null {
 export async function getRoom(id: string): Promise<Room | null> {
   const redis = getRedis();
   if (redis) {
-    const data = await redis.get(`room:${id}`);
-    if (!data) return null;
-    return typeof data === "string" ? JSON.parse(data) : (data as Room);
+    try {
+      const data = await redis.get(`room:${id}`);
+      if (!data) return null;
+      return typeof data === "string" ? JSON.parse(data) : (data as Room);
+    } catch (err) {
+      console.error("[store] Redis getRoom failed, falling back to mem:", err);
+    }
   }
   return memStore.get(id) ?? null;
 }
@@ -47,11 +51,14 @@ export async function getRoom(id: string): Promise<Room | null> {
 export async function setRoom(id: string, room: Room): Promise<void> {
   const redis = getRedis();
   if (redis) {
-    // 24-hour expiry – plenty for a party night
-    await redis.setex(`room:${id}`, 86400, JSON.stringify(room));
-  } else {
-    memStore.set(id, room);
+    try {
+      await redis.setex(`room:${id}`, 86400, JSON.stringify(room));
+      return;
+    } catch (err) {
+      console.error("[store] Redis setRoom failed, falling back to mem:", err);
+    }
   }
+  memStore.set(id, room);
 }
 
 export async function logDrinkHistory(userId: string, record: DrinkRecord): Promise<void> {

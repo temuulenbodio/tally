@@ -58,7 +58,8 @@ export async function POST(request: Request) {
 
     await setRoom(id, room);
     return NextResponse.json({ id, name });
-  } catch {
+  } catch (err) {
+    console.error("[POST /api/rooms]", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
